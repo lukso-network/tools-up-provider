@@ -1,0 +1,27 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*local"],
+  "globalEnv": ["VUE_APP_SHARED_KEY", "TEST_PINATAAPIKEY", "TEST_PINATASECRETAPIKEY", "TEST_PINATAJWTKEY", "TEST_INFURA_API_KEY_NAME", "TEST_INFURA_API_KEY", "TEST_INFURA_GATEWAY", "TEST_SHARED_KEY"],
+  "tasks": {
+    "build": {
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "outputs": ["coverage/**"],
+      "dependsOn": ["build"]
+    },
+    "demo": {
+      "dependsOn": ["build"]
+    },
+    "docs": {},
+    "lint": {},
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

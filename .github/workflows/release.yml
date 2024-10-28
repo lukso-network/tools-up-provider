@@ -1,0 +1,82 @@
+name: Github + NPM Release
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "main"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: google-github-actions/release-please-action@v3
+        id: release
+        with:
+          release-type: node
+          bump-minor-pre-major: true
+          default-branch: main
+          command: manifest
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: "9.10.0"
+
+      - name: Use Node.js '20.17.0'
+        uses: actions/setup-node@v2
+        with:
+          node-version: "20.17.0"
+          registry-url: "https://registry.npmjs.org"
+          scope: "@lukso"
+          cache: "pnpm"
+
+      - name: Setup Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      # `npm run build:js` will also generate the auto-generated constants for methods, errors and events,
+      # including extracting their devdocs and userdocs
+      - name: Prepare artifacts to publish
+        run: pnpm run build
+
+      - name: Tests
+        run: pnpm run test
+
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Colled documentation
+        run: |
+          pnpm gendocs
+
+      - name: Deploy
+        # if: ${{ steps.release.outputs.release_created }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          enable_jekyll: true
+
+      - run: |
+          (cat <<END > outputs.json
+          ${{toJSON(steps.release.outputs)}}
+          END
+          )
+          node ./scripts/publish.mjs outputs.json
+        if: ${{ steps.release.outputs.releases_created }}
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

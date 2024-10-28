@@ -1,0 +1,14 @@
+# compiled output
+/dist/
+
+# dependencies
+/node_modules/
+/charts/
+
+# misc
+/coverage/
+!.*
+.eslintcache
+/.vscode
+
+/packages/tools-lukso-provider/docs/**/*.md

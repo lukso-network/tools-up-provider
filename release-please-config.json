@@ -1,0 +1,15 @@
+{
+  "packages": {
+    "packages/up-provider": {
+      "component": "up-provider",
+      "package-name": "@lukso/up-provider",
+      "include-component-in-tag": true,
+      "release-type": "node",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "draft": false,
+      "prerelease": false
+    }
+  },
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}

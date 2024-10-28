@@ -1,0 +1,6 @@
+{
+  "entryPoints": ["packages/*"],
+  "name": "Up Provider",
+  "entryPointStrategy": "packages",
+  "includeVersion": false
+}

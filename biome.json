@@ -1,0 +1,38 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.6.3/schema.json",
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "suspicious": {
+        "noExplicitAny": "off"
+      },
+      "style": {
+        "useNodejsImportProtocol": "off"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": false,
+    "indentWidth": 2,
+    "indentStyle": "space"
+  },
+  "javascript": {
+    "formatter": {
+      "enabled": false,
+      "semicolons": "asNeeded",
+      "quoteStyle": "single",
+      "trailingComma": "none"
+    }
+  },
+  "files": {
+    "maxSize": 1048576,
+    "ignore": [
+			"api-extractor.json",
+			"dist",
+			"*.cjs",
+			"./packages/data-provider-fetcher/lib/**/*",
+			"./packages/data-provider-fetcher/out/**/*",
+			"./packages/data-provider-queries/contracts/**/*"
+		]
+  }
+}
