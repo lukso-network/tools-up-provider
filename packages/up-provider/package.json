@@ -1,5 +1,5 @@
 {
-  "name": "@lukso/embedded-provider",
+  "name": "@lukso/up-provider",
   "packageManager": "yarn@3.3.0",
   "files": [
     "dist",
