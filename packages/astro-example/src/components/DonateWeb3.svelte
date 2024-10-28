@@ -1,16 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { createClientUPProvider } from '@lukso/up-provider';
-  import Web3 from 'web3';
+  import Web3,{ type SupportedProviders, type EthExecutionAPI } from 'web3';
 
   let chainId: number | null = null;
   let accounts: string[] = [];
   let walletConnected = false;
   const presetAmounts = [0.01, 0.05, 0.1];
+  // biome-ignore lint/style/useConst: <explanation>
   let amount = presetAmounts[0];
 
   const provider = createClientUPProvider();
-  const web3 = new Web3(provider);
+  const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
 
   function checkWalletStatus() {
     walletConnected = !!accounts[0] && !!accounts[1] && chainId === 42;
@@ -18,8 +19,8 @@
 
   onMount(() => {
     web3.eth.getChainId()
-      .then(_chainId => {
-        chainId = _chainId;
+      .then((_chainId: bigint) => {
+        chainId = Number(_chainId);
         checkWalletStatus();
       })
       .catch(error => { /* Ignore error */ });

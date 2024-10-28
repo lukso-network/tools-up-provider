@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { createClientUPProvider } from '@lukso/up-provider'
 import { ref, watch } from 'vue'
-import Web3 from 'web3'
+import Web3, { type SupportedProviders, type EthExecutionAPI } from 'web3'
 import './Donate.scss'
 
 const chainId = ref<number | null>(null)
@@ -10,12 +10,11 @@ const walletConnected = ref<boolean>(false)
 const presetAmounts = [0.01, 0.05, 0.1]
 const amount = ref<string>(presetAmounts[0].toString())
 const provider = createClientUPProvider()
-const web3 = new Web3(provider)
-window.web3 = web3
+const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>)
 web3.eth
   ?.getChainId()
   .then(_chainId => {
-    chainId.value = _chainId
+    chainId.value = Number(_chainId)
     walletConnected.value = !!accounts.value[0] && !!accounts.value[1] && chainId.value === 42
   })
   .catch(error => {
@@ -36,13 +35,13 @@ provider.on('chainChanged', (_chainId: number) => {
   chainId.value = _chainId
 })
 watch(
-  () => [chainId.value, accounts.value],
-  ([chainId, accounts]) => {
+  () => [chainId.value, accounts.value] as [number, Array<`0x${string}` | ''>],
+  ([chainId, accounts]: [number, Array<`0x${string}` | ''>]) => {
     walletConnected.value = !!accounts?.[0] && !!accounts?.[1] && chainId === 42
   }
 )
 function donate() {
-  web3.value?.eth.sendTransaction({
+  web3.eth.sendTransaction({
     from: accounts.value[0],
     to: accounts.value[1],
     value: amount.value?.toString() || '0',

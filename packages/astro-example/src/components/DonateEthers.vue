@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { createClientUPProvider } from '@lukso/up-provider'
 import { ref, watch } from 'vue'
-import { ethers } from 'ethers'
+import { ethers, type Eip1193Provider } from 'ethers'
 import './Donate.scss'
 
 const chainId = ref<number | null>(null)
@@ -10,7 +10,7 @@ const walletConnected = ref<boolean>(false)
 const presetAmounts = [0.01, 0.05, 0.1]
 const amount = ref<string>(presetAmounts[0].toString())
 const provider = createClientUPProvider()
-const ethersProvider = new ethers.BrowserProvider(provider)
+const ethersProvider = new ethers.BrowserProvider(provider as unknown as Eip1193Provider)
 ethersProvider
   .send('eth_chainId', [])
   .then(_chainId => {
@@ -35,13 +35,13 @@ provider.on('chainChanged', (_chainId: number) => {
   chainId.value = _chainId
 })
 watch(
-  () => [chainId.value, accounts.value],
-  ([chainId, accounts]) => {
+  () => [chainId.value, accounts.value] as [number, Array<`0x${string}` | ''>],
+  ([chainId, accounts]: [number, Array<`0x${string}` | ''>]) => {
     walletConnected.value = !!accounts?.[0] && !!accounts?.[1] && chainId === 42
   }
 )
 function donate() {
-  ethersProvider.sendTransaction({
+  ethersProvider.send('eth_sendTransaction', {
     from: accounts.value[0],
     to: accounts.value[1],
     value: amount.value?.toString() || '0',
