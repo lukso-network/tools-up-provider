@@ -65,7 +65,7 @@ const DonateWidget = () => {
 
   return (
     <div className="donate-widget">
-      <h3>Donate LYX</h3>
+      <h3>Donate LYX (React Web3)</h3>
       <div>
         <label htmlFor="selectId">Select Amount:</label>
         <select id="selectId" value={amount} onChange={e => setAmount(Number(e.target.value))}>

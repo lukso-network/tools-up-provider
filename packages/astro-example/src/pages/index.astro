@@ -1,13 +1,17 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import DonateReact from '../components/Donate.tsx';
-import DonateVue from '../components/Donate.vue';
-import DonateSvelte from '../components/Donate.svelte';
+import DonateReact from '../components/DonateWeb3.tsx';
+import DonateViemReact from '../components/DonateViem.tsx';
+import DonateVue from '../components/DonateWeb3.vue';
+import DonateEthersVue from '../components/DonateEthers.vue';
+import DonateSvelte from '../components/DonateWeb3.svelte';
 ---
 
 <Layout title="Welcome to Astro.">
 	<main>
+    <DonateEthersVue client:only="vue"/>
 		<DonateReact client:only="react"/>
+    <DonateViemReact client:only="react"/>
     <DonateVue client:only="vue"/>
     <DonateSvelte client:only="svelte"/>
 	</main>

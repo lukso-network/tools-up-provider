@@ -140,7 +140,7 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
         const { chainId, accounts, rpcUrls } = event.data
 
         clientLog('client init', event.data, _up)
-        _up.removeEventListener('message', testFn)
+        window.removeEventListener('message', testFn)
         if (timeout) {
           clearTimeout(timeout)
           timeout = 0
@@ -162,7 +162,7 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
     channel.port1.addEventListener('message', testFn)
     channel.port1.start()
     window.addEventListener('message', testFn)
-    clientLog('client', 'send find wallet', _up.location.href, _up)
+    clientLog('client', 'send find wallet', _up)
     _up.postMessage('upProvider:hasProvider', '*', [channel.port2])
 
     timeout = setTimeout(() => {
@@ -170,7 +170,7 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
       window.removeEventListener('message', testFn)
       channel.port1.removeEventListener('message', testFn)
 
-      clientLog('client', 'No UP found', _up.location.href, _up)
+      clientLog('client', 'No UP found', _up)
       reject(new Error('No UP found'))
     }, 1000)
   })
@@ -215,7 +215,7 @@ async function findDestination(authURL: string | Window | undefined | null, remo
     let retry = 3
     while (retry > 0) {
       let current: Window | undefined = window.opener && window.opener !== window ? window.opener : window.parent && window.parent !== window ? window.parent : undefined
-      clientLog('search', current?.location.href)
+      clientLog('search', current)
       while (current) {
         up = await testWindow(current, remote, options).catch(() => undefined)
         if (up) {
@@ -224,9 +224,9 @@ async function findDestination(authURL: string | Window | undefined | null, remo
         if (current === window.top) {
           break
         }
-        clientLog('current', current.location.href)
+        clientLog('current', current)
         current = current.opener && current.opener !== current ? current.opener : current.parent && current.parent !== current ? current.parent : null
-        clientLog('next', current?.location.href)
+        clientLog('next', current)
       }
       if (up) {
         break

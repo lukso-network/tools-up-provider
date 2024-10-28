@@ -52,7 +52,7 @@ function donate() {
 
 <template>
   <div class="donate-widget">
-    <h3>Donate LYX</h3>
+    <h3>Donate LYX (Vue Web3)</h3>
     <div>
       <label>Select Amount:</label>
       <select v-model="amount">

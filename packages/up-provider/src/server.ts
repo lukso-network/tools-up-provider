@@ -82,15 +82,7 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   readonly #getter: () => boolean
   readonly #setter: (value: boolean) => void
 
-  constructor(
-    serverChannel: MessagePort,
-    public readonly window: Window,
-    public readonly element: HTMLIFrameElement | null,
-    public readonly id: string,
-    server: JSONRPCServer,
-    getter: () => boolean,
-    setter: (value: boolean) => void
-  ) {
+  constructor(serverChannel: MessagePort, public readonly window: Window, public readonly element: HTMLIFrameElement | null, public readonly id: string, server: JSONRPCServer, getter: () => boolean, setter: (value: boolean) => void) {
     super()
     this.#getter = getter
     this.#setter = setter
@@ -476,7 +468,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
   }
   globalUPProvider = new _UPProviderConnector(channels, options)
 
-  serverLog('server listen', window.location.href, window)
+  serverLog('server listen', window)
 
   // Server handler to accept new client provider connections
   options.providerHandler = (event: MessageEvent) => {
