@@ -80,3 +80,7 @@ jobs:
         if: ${{ steps.release.outputs.releases_created }}
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+
+      - name: 'Deploy astro example'
+        run: |
+          pnpm wrangler:publish

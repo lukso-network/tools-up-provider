@@ -1,0 +1,5 @@
+name = "universalprofile-widget-example"
+compatibility_date = "2023-09-07"
+compatibility_flags = ["nodejs_compat"]
+
+pages_build_output_dir="dist"

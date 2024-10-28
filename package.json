@@ -12,6 +12,8 @@
     "test": "turbo test",
     "version-packages": "turbo run build lint test",
     "publish-packages": "turbo run build lint test && changeset version && changeset publish",
+    "wrangler:deploy": "turbo run wrangler:deploy --force",
+    "wrangler:preview": "turbo run wrangler:preview --force",
     "gendocs": "rm -rf ./.docs-json && turbo run docs --force && typedoc --githubPages --entryPointStrategy merge ./.docs-json/*.json -out docs"
   },
   "devDependencies": {
@@ -34,6 +36,7 @@
   ],
   "name": "tools-data-providers",
   "dependencies": {
-    "typedoc": "^0.26.10"
+    "typedoc": "^0.26.10",
+    "wrangler": "^3.83.0"
   }
 }

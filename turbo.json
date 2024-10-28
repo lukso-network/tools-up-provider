@@ -3,6 +3,12 @@
   "globalDependencies": ["**/.env.*local"],
   "globalEnv": ["VUE_APP_SHARED_KEY", "TEST_PINATAAPIKEY", "TEST_PINATASECRETAPIKEY", "TEST_PINATAJWTKEY", "TEST_INFURA_API_KEY_NAME", "TEST_INFURA_API_KEY", "TEST_INFURA_GATEWAY", "TEST_SHARED_KEY"],
   "tasks": {
+    "wrangler:deploy": {
+      "dependsOn": ["build"]
+    },
+    "wrangler:preview": {
+      "dependsOn": ["build"]
+    },
     "build": {
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "dependsOn": ["^build"]
