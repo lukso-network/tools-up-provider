@@ -1,6 +1,6 @@
-import { JSONRPCClient, JSONRPCParams } from 'json-rpc-2.0'
+import { JSONRPCClient, type JSONRPCParams } from 'json-rpc-2.0'
 import { v4 as uuidv4 } from 'uuid'
-import EventEmitter3, { EventEmitter } from 'eventemitter3'
+import EventEmitter3, { type EventEmitter } from 'eventemitter3'
 import debug from 'debug'
 import image from './UniversalProfiles_Apps_Logo_96px.svg'
 

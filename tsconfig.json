@@ -14,8 +14,7 @@
     "allowJs": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@lukso/embedded-wallet": ["node_modules/@lukso/embedded-wallet/src"]
+      "@/*": ["src/*"]
     },
     "types": ["jest", "node"],
     "lib": ["esnext", "dom", "dom.iterable", "scripthost"]

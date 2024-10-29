@@ -53,7 +53,7 @@
 </script>
 
 <div class="donate-widget">
-  <h3>Donate LYX (Svelte Web3)</h3>
+  <h3>Donate LYX</h3>
   <div>
     <label for="selectId">Select Amount:</label>
     <select id="selectId" bind:value={amount}>

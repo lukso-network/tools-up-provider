@@ -1,13 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import DonateVue from '../components/DonateWeb3.vue';
+import DonateSvelte from '../components/DonateWeb3.svelte';
 import Navigation from '../components/Navigation.astro';
 ---
 
 <Layout title="Welcome to Astro.">
 	<main>
-    <h2>Vue Web3</h2>
-    <DonateVue client:only="vue"/>
+    <h2>Svelte Web3</h2>
+    <DonateSvelte client:only="svelte"/>
     <Navigation isHome/>
 	</main>
 </Layout>

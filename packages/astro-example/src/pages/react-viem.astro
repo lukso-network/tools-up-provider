@@ -1,13 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import DonateVue from '../components/DonateWeb3.vue';
+import DonateViemReact from '../components/DonateViem.tsx';
 import Navigation from '../components/Navigation.astro';
 ---
 
 <Layout title="Welcome to Astro.">
 	<main>
-    <h2>Vue Web3</h2>
-    <DonateVue client:only="vue"/>
+    <h2>React Viem</h2>
+    <DonateViemReact client:only="react"/>
     <Navigation isHome/>
 	</main>
 </Layout>

@@ -1,6 +1,6 @@
-import { JSONRPCErrorResponse, JSONRPCParams, JSONRPCServer, JSONRPCSuccessResponse } from 'json-rpc-2.0'
+import { type JSONRPCErrorResponse, type JSONRPCParams, JSONRPCServer, type JSONRPCSuccessResponse } from 'json-rpc-2.0'
 import { v4 as uuidv4 } from 'uuid'
-import EventEmitter3, { EventEmitter } from 'eventemitter3'
+import EventEmitter3, { type EventEmitter } from 'eventemitter3'
 import debug from 'debug'
 
 const serverLog = debug('upProvider:server')
@@ -181,7 +181,7 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   public close() {
     const el: any = this.element || this.window
     if (el.upChannel === this) {
-      delete el.upChannel
+      el.upChannel = undefined
     }
     this.#serverChannel.close()
   }

@@ -1,0 +1,43 @@
+---
+interface Props {
+  isHome?: boolean;
+}
+
+const { isHome } = Astro.props;
+---
+<div class="nav">
+  <a class="button-link" href="/react-web3">React Web3</a>
+  <a class="button-link" href="/react-viem">React Viem</a>
+  <a class="button-link" href="/vue-ethers">Vue Ethers</a>
+  <a class="button-link" href="/svelte-web3">Svelte Web3</a>
+  <a class="button-link" href="/">Vue Web3</a>
+</div>
+<style>
+.nav {
+  padding-top: 100px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px;
+}
+a.button-link {
+  display: inline-block;
+  padding: 2px 10px; /* Add padding for button size */
+  border-radius: 5px; /* Rounded corners */
+  background-color: #4caf50; /* Button color */
+  color: white; /* Text color */
+  text-decoration: none; /* Remove underline */
+  font-weight: bold; /* Bold text for emphasis */
+  font-size: 15px;
+  text-align: center; /* Center the text */
+  transition: background-color 0.3s ease; /* Smooth hover effect */
+}
+
+a.button-link:hover {
+  background-color: #45a049; /* Darker color on hover */
+}
+
+a.button-link:active {
+  background-color: #3e8e41; /* Even darker color on click */
+}
+</style>
