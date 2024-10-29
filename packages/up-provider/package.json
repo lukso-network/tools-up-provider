@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "tsup ./src",
-    "docs": "(name=$(basename $(pwd)) && cd ../.. && pnpm typedoc --json ./.docs-json/$name.json --options packages/$name/typedocs.json)"
+    "docs": "mkdir -p ../../.docs-json && pnpm typedoc --json ../../.docs-json/$name.json --options typedoc.json"
   },
   "exports": {
     ".": {

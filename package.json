@@ -14,7 +14,7 @@
     "publish-packages": "turbo run build lint test && changeset version && changeset publish",
     "wrangler:deploy": "turbo run wrangler:deploy",
     "wrangler:preview": "turbo run wrangler:preview",
-    "gendocs": "rm -rf ./.docs-json && turbo run docs && typedoc --githubPages --entryPointStrategy merge ./.docs-json/*.json -out docs"
+    "gendocs": "turbo run docs && typedoc --githubPages --entryPointStrategy merge ./.docs-json/*.json -out docs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
