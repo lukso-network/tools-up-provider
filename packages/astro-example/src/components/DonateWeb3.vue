@@ -40,7 +40,7 @@ watch(
     walletConnected.value = !!accounts?.[0] && !!accounts?.[1] && chainId === 42
   }
 )
-function donate() {
+async function donate() {
   web3.eth.sendTransaction({
     from: accounts.value[0],
     to: accounts.value[1],

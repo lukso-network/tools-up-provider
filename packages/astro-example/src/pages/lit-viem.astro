@@ -1,0 +1,25 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DonateLitViem from '../components/DonateViem.lit';
+import Navigation from '../components/Navigation.astro';
+---
+
+<Layout title="Welcome to Astro.">
+	<main>
+    <h2>LIT Viem</h2>
+    <DonateLitViem client:only="lit"/>
+    <Navigation isHome/>
+	</main>
+</Layout>
+
+<style>
+	main {
+		margin: auto;
+		padding: 1rem;
+		width: 800px;
+		max-width: calc(100% - 2rem);
+		color: white;
+		font-size: 20px;
+		line-height: 1.6;
+	}
+</style>
