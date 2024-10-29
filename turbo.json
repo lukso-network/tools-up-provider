@@ -1,12 +1,14 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": ["**/.env.*local"],
-  "globalEnv": ["VUE_APP_SHARED_KEY", "TEST_PINATAAPIKEY", "TEST_PINATASECRETAPIKEY", "TEST_PINATAJWTKEY", "TEST_INFURA_API_KEY_NAME", "TEST_INFURA_API_KEY", "TEST_INFURA_GATEWAY", "TEST_SHARED_KEY"],
+  "globalEnv": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"],
   "tasks": {
     "wrangler:deploy": {
+      "cache": false,
       "dependsOn": ["build"]
     },
     "wrangler:preview": {
+      "cache": false,
       "dependsOn": ["build"]
     },
     "build": {
@@ -20,7 +22,9 @@
     "demo": {
       "dependsOn": ["build"]
     },
-    "docs": {},
+    "docs": {
+      "cache": false
+    },
     "lint": {},
     "dev": {
       "cache": false,

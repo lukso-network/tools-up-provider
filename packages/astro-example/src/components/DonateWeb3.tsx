@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClientUPProvider } from '@lukso/up-provider'
-import Web3, { type NumberTypes, type ByteTypes, type EthExecutionAPI, type SupportedProviders, type DataFormat, FMT_NUMBER, FMT_BYTES } from 'web3'
+import Web3, { type EthExecutionAPI, type SupportedProviders, type DataFormat, FMT_NUMBER, FMT_BYTES } from 'web3'
 import './Donate.scss'
 
 const provider = createClientUPProvider()

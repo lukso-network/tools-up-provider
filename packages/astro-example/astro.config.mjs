@@ -14,5 +14,6 @@ export default defineConfig({
     optimizeDeps: {
       exclude: ['unnecessary-package'],
     },
+    logLevel: 'info',
   },
 })
