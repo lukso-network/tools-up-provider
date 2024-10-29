@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
 import { createClientUPProvider } from '@lukso/up-provider'
+import { useEffect, useState } from 'react'
 import Web3, { type EthExecutionAPI, type SupportedProviders, type DataFormat, FMT_NUMBER, FMT_BYTES } from 'web3'
 import './Donate.scss'
 

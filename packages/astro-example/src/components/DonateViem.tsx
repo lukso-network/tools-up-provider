@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
 import { createClientUPProvider } from '@lukso/up-provider'
+import { useEffect, useState } from 'react'
 import { createWalletClient, custom, parseUnits } from 'viem'
 import { lukso } from 'viem/chains'
 import './Donate.scss'

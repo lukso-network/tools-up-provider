@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { createClientUPProvider } from '@lukso/up-provider'
+import { type Eip1193Provider, ethers } from 'ethers'
 import { ref, watch } from 'vue'
-import { ethers, type Eip1193Provider } from 'ethers'
 import './Donate.scss'
 
 const chainId = ref<number | null>(null)

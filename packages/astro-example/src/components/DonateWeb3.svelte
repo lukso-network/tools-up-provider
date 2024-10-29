@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { createClientUPProvider } from '@lukso/up-provider';
+  import { onMount } from "svelte";
   import Web3,{ type SupportedProviders, type EthExecutionAPI } from 'web3';
 
   let chainId: number | null = null;

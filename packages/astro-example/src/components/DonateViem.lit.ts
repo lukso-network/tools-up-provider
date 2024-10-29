@@ -1,6 +1,6 @@
-import { html, css, LitElement } from 'lit'
-import { customElement, property, state } from 'lit/decorators.js'
 import { createClientUPProvider } from '@lukso/up-provider'
+import { LitElement, css, html } from 'lit'
+import { customElement, property, state } from 'lit/decorators.js'
 import { createWalletClient, custom, parseUnits } from 'viem'
 import { lukso } from 'viem/chains'
 

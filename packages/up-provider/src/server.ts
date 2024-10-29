@@ -1,7 +1,7 @@
+import debug from 'debug'
+import EventEmitter3, { type EventEmitter } from 'eventemitter3'
 import { type JSONRPCErrorResponse, type JSONRPCParams, JSONRPCServer, type JSONRPCSuccessResponse } from 'json-rpc-2.0'
 import { v4 as uuidv4 } from 'uuid'
-import EventEmitter3, { type EventEmitter } from 'eventemitter3'
-import debug from 'debug'
 
 const serverLog = debug('upProvider:server')
 interface UPClientChannelEvents {

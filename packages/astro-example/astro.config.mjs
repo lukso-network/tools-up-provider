@@ -7,7 +7,7 @@ import vue from '@astrojs/vue'
 
 import svelte from '@astrojs/svelte'
 
-import lit from '@astrojs/lit';
+import lit from '@astrojs/lit'
 
 // https://astro.build/config
 export default defineConfig({
@@ -17,5 +17,13 @@ export default defineConfig({
       exclude: ['unnecessary-package'],
     },
     logLevel: 'info',
+    esbuild: {
+      tsconfigRaw: {
+        compilerOptions: {
+          experimentalDecorators: true,
+          useDefineForClassFields: false,
+        },
+      },
+    },
   },
 })
