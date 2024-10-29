@@ -1,13 +1,13 @@
 ---
-
+const currentPath = Astro.url.pathname;
 ---
 <div class="nav">
-  <a class="button-link" href="/react-web3">React Web3</a>
-  <a class="button-link" href="/react-viem">React Viem</a>
-  <a class="button-link" href="/lit-viem">Lit Viem</a>
-  <a class="button-link" href="/vue-ethers">Vue Ethers</a>
-  <a class="button-link" href="/svelte-web3">Svelte Web3</a>
-  <a class="button-link" href="/">Vue Web3</a>
+  <a href="/" class={`button-link ${currentPath === '/' ? 'disabled' : ''}`}>Vue Web3</a>
+  <a href="/react-web3" class={`button-link ${currentPath === '/react-web3' ? 'disabled' : ''}`}>React Web3</a>
+  <a href="/react-viem" class={`button-link ${currentPath === '/react-viem' ? 'disabled' : ''}`}>React Viem</a>
+  <a href="/lit-viem" class={`button-link ${currentPath === '/lit-viem' ? 'disabled' : ''}`}>Lit Viem</a>
+  <a href="/vue-ethers" class={`button-link ${currentPath === '/vue-ethers' ? 'disabled' : ''}`}>Vue Ethers</a>
+  <a href="/svelte-web3" class={`button-link ${currentPath === '/svelte-web3' ? 'disabled' : ''}`}>Svelte Web3</a>
 </div>
 <style>
 .nav {
@@ -36,5 +36,12 @@ a.button-link:hover {
 
 a.button-link:active {
   background-color: #3e8e41; /* Even darker color on click */
+}
+
+a.button-link.disabled {
+  background-color: #ccc;
+  color: #666;
+  pointer-events: none; /* Prevents clicking */
+  cursor: default;
 }
 </style>
