@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/lukso-network/tools-up-provider/compare/v1.0.0...v1.0.1) (2024-10-30)
+
+
+### Bug Fixes
+
+* Release please not configured correctly ([d23f1cd](https://github.com/lukso-network/tools-up-provider/commit/d23f1cd87c47c772534c9626a9a1322b7f4e36ec))
+* Upgrade pnpm ([48df093](https://github.com/lukso-network/tools-up-provider/commit/48df093b6c78424110159b749df1be5ac692c365))
+
 ## 1.0.0 (2024-10-30)
 
 
