@@ -68,7 +68,7 @@
 </div>
 
 <style>
-  .donate-widget {
+.donate-widget {
   border: 2px solid #d1d1d1; /* Light border */
   border-radius: 12px; /* Rounded corners */
   padding: 20px; /* Inner padding */

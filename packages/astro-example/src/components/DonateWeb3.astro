@@ -1,0 +1,143 @@
+---
+import { createClientUPProvider } from '@lukso/up-provider';
+import Web3, { type EthExecutionAPI, type SupportedProviders } from 'web3';
+
+// Client-only initialization of variables
+const presetAmounts = [0.01, 0.05, 0.1];
+let amount = presetAmounts[0];
+let chainId = 0;
+let accounts: Array<`0x${string}` | ''> = [];
+let walletConnected = false;
+
+// Function to initialize provider and Web3 on the client side
+function initWidget() {
+  const provider = createClientUPProvider();
+  const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
+
+  // Update wallet connection status
+  function checkWalletStatus() {
+    walletConnected = accounts.length > 1 && chainId === 42;
+    const button: HTMLButtonElement = document.getElementById("donateButton") as HTMLButtonElement;
+    button.disabled = !walletConnected;
+  }
+
+  // Fetch and set up account and chain information
+  async function setupWeb3() {
+    try {
+      chainId = Number(await web3.eth.getChainId());
+      accounts = (await web3.eth.getAccounts()) as Array<`0x${string}` | ''>;
+      checkWalletStatus();
+    } catch (error) {
+      console.error('Error fetching Web3 info:', error);
+    }
+  }
+
+  // Set up event listeners for account and chain changes
+  provider.on('accountsChanged', (_accounts) => {
+    accounts = _accounts;
+    checkWalletStatus();
+  });
+
+  provider.on('chainChanged', (_chainId) => {
+    chainId = _chainId;
+    checkWalletStatus();
+  });
+
+  setupWeb3();
+
+  // Donation function
+  async function donate() {
+    try {
+      await web3.eth.sendTransaction({
+        from: accounts[0],
+        to: accounts[1],
+        value: web3.utils.toWei(amount.toString(), "ether"),
+      });
+    } catch (error) {
+      console.error('Donation failed:', error);
+    }
+  }
+
+  return { donate, setAmount: (newAmount: number) => {
+    amount = newAmount }};
+}
+---
+
+<div class="donate-widget">
+  <h3>Donate LYX</h3>
+  <div>
+    <label for="selectId">Select Amount:</label>
+    <select id="selectId">
+      {presetAmounts.map(amt => (
+        <option value={amt}>{amt} LYX</option>
+      ))}
+    </select>
+  </div>
+  <button id="donateButton" disabled>Donate {amount} LYX</button>
+</div>
+
+<script type="module">
+  // Client-side script to handle interactions
+  const { donate, setAmount } = initWidget();
+
+  document.getElementById('selectId').addEventListener('change', (event) => {
+    setAmount(Number(event.target.value));
+    document.getElementById('donateButton').innerText = `Donate ${event.target.value} LYX`;
+  });
+
+  document.getElementById('donateButton').addEventListener('click', donate);
+</script>
+
+<style>
+  .donate-widget {
+    border: 2px solid #d1d1d1;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px auto;
+    max-width: 300px;
+    background-color: #f9f9f9;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+
+  .donate-widget h3 {
+    margin-top: 0;
+    color: #333;
+  }
+
+  .donate-widget label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #555;
+  }
+
+  .donate-widget select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #d1d1d1;
+    margin-bottom: 15px;
+  }
+
+  .donate-widget button {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    background-color: #4caf50;
+    color: white;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+
+  .donate-widget button:hover {
+    background-color: #45a049;
+  }
+
+  .donate-widget button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+</style>

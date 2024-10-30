@@ -1,0 +1,25 @@
+---
+import DonateAstro from '../components/DonateWeb3.astro';
+import Navigation from '../components/Navigation.astro';
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Welcome to Astro.">
+	<main>
+    <h2>Svelte Web3</h2>
+    <DonateAstro/>
+    <Navigation isHome/>
+	</main>
+</Layout>
+
+<style>
+	main {
+		margin: auto;
+		padding: 1rem;
+		width: 800px;
+		max-width: calc(100% - 2rem);
+		color: white;
+		font-size: 20px;
+		line-height: 1.6;
+	}
+</style>
