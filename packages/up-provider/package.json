@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "tsup ./src",
-    "docs": "mkdir -p ../../.docs-json && pnpm typedoc --json ../../.docs-json/$name.json --options typedoc.json"
+    "docs": "path=$(pwd) && name=$(basename $path) && mkdir -p ../../.docs-json && (cd ../.. && ls ./packages/$name && typedoc --json .docs-json/$name.json --tsconfig ./packages/$name/tsconfig.json --options ./packages/$name/typedoc.json)"
   },
   "exports": {
     ".": {
