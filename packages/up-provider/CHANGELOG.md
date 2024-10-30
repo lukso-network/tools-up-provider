@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.2...up-provider-v0.1.3) (2024-10-30)
+
+
+### Bug Fixes
+
+* Add some more docs ([ff6e4ac](https://github.com/lukso-network/tools-up-provider/commit/ff6e4ac889a516f1995d38a513902bccb3ba830b))
+* Repair docs since npmjs doesn't seem to render mermaid. ([41fbbe6](https://github.com/lukso-network/tools-up-provider/commit/41fbbe6cc48547dca1086fc73dd6400aa4849156))
+
 ## [0.1.2](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.1...up-provider-v0.1.2) (2024-10-30)
 
 
