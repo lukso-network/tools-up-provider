@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.1...up-provider-v0.1.2) (2024-10-30)
+
+
+### Bug Fixes
+
+* Release please not configured correctly ([d23f1cd](https://github.com/lukso-network/tools-up-provider/commit/d23f1cd87c47c772534c9626a9a1322b7f4e36ec))
+* Repair ([29b0d21](https://github.com/lukso-network/tools-up-provider/commit/29b0d21235eb02eb074377e2942254fea1cb8328))
+
 ## [0.1.1](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.0...up-provider-v0.1.1) (2024-10-29)
 
 
