@@ -34,5 +34,6 @@
   "dependencies": {
     "typedoc": "^0.26.10",
     "wrangler": "^3.83.0"
-  }
+  },
+  "version": "1.0.0"
 }
