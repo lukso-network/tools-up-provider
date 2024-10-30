@@ -8,11 +8,7 @@
     "lint:fix": "biome check . --apply",
     "clean": "turbo clean && rm -rf node_modules temp",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "changeset": "changeset",
-    "release": "turbo build --filter=docs^... && changeset publish",
     "test": "turbo test",
-    "version-packages": "turbo run build lint test",
-    "publish-packages": "turbo run build lint test && changeset version && changeset publish",
     "wrangler:deploy": "turbo run wrangler:deploy",
     "wrangler:preview": "turbo run wrangler:preview",
     "gendocs": "turbo run docs && typedoc --githubPages --entryPointStrategy merge ./.docs-json/*.json -out docs"
