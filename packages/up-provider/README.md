@@ -6,6 +6,8 @@ Client and server connector for UPProvider.
 
 Client side (for example inside of a grid widget) setup
 
+### Using viem
+
 ```ts
 import { createClientUPProvider } from '@lukso/up-provider'
 import { createWalletClient, custom } from 'viem'
@@ -20,6 +22,24 @@ const walletClient = createWalletClient({
   chain: lukso,
   transport: custom(provider),
 })
+```
+
+### Using web3.js
+
+```ts
+import { createClientUPProvider } from '@lukso/up-provider';
+import Web3, { type EthExecutionAPI, type SupportedProviders } from 'web3';
+const provider = createClientUPProvider();
+const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
+```
+
+### Using ethers.js
+
+```ts
+import { createClientUPProvider } from '@lukso/up-provider'
+import { type Eip1193Provider, ethers } from 'ethers'
+const upProvider = createClientUPProvider()
+const provider = new ethers.BrowserProvider(upProvider as unknown as Eip1193Provider)
 ```
 
 ## Page side of the provider
