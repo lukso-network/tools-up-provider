@@ -3,6 +3,8 @@ import EventEmitter3, { type EventEmitter } from 'eventemitter3'
 import { JSONRPCClient, type JSONRPCParams } from 'json-rpc-2.0'
 import { v4 as uuidv4 } from 'uuid'
 import image from './UniversalProfiles_Apps_Logo_96px.svg'
+import { create } from 'domain'
+import { createWalletPopup } from './popup'
 
 const clientLog = debug('upProvider:client')
 
@@ -176,7 +178,28 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
   })
 }
 
-async function findUP(authURL: string | Window | undefined | null, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider> {
+async function findUP(authURL: string | Window | undefined | null, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider | undefined> {
+  if (typeof authURL === 'string') {
+    const info = localStorage.getItem(`upProvider:info:${authURL}`)
+    if (info) {
+      const { chainId, accounts, rpcUrls } = JSON.parse(info)
+      options.init = { chainId, accounts, rpcUrls }
+    }
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const popup = createWalletPopup()
+      if (popup) {
+        const current = await popup.openModal(authURL)
+        if (current) {
+          const up = await testWindow(current, remote, options)
+          if (up) {
+            return up
+          }
+          throw new Error('No UP found')
+        }
+      }
+    }
+    return
+  }
   let current = window.opener || window.parent
   if (current) {
     const up = await testWindow(current, remote, options)

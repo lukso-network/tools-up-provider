@@ -1,0 +1,24 @@
+---
+import WalletVue from '../components/Wallet.vue';
+import Navigation from '../components/Navigation.astro';
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Welcome to Astro.">
+	<main>
+    <h2>Wallet</h2>
+    <WalletVue client:only="vue"/>
+	</main>
+</Layout>
+
+<style>
+	main {
+		margin: auto;
+		padding: 1rem;
+		width: 800px;
+		max-width: calc(100% - 2rem);
+		color: white;
+		font-size: 20px;
+		line-height: 1.6;
+	}
+</style>

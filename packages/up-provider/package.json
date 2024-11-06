@@ -21,6 +21,7 @@
   },
   "scripts": {
     "build": "tsup ./src",
+    "dev": "tsup ./src --watch",
     "docs": "path=$(pwd) && name=$(basename $path) && mkdir -p ../../.docs-json && (cd ../.. && ls ./packages/$name && typedoc --json .docs-json/$name.json --tsconfig ./packages/$name/tsconfig.json --options ./packages/$name/typedoc.json)"
   },
   "exports": {
