@@ -141,6 +141,9 @@ importers:
       json-rpc-2.0:
         specifier: ^1.7.0
         version: 1.7.0
+      lit:
+        specifier: ^3.2.1
+        version: 3.2.1
       pauseable:
         specifier: ^0.3.2
         version: 0.3.2
