@@ -17,6 +17,15 @@ type RequestQueueItem = {
   params: unknown[]
 }
 
+type UPWindowConfig =
+  | Window
+  | null
+  | undefined
+  | {
+      url: string
+      mode: 'popup' | 'iframe'
+    }
+
 interface UPClientProviderEvents {
   connected: () => void
   disconnected: () => void
@@ -25,6 +34,7 @@ interface UPClientProviderEvents {
   chainChanged: (chainId: number) => void
   injected: (page: `0x${string}` | '') => void
   rpcUrls: (rpcUrls: string[]) => void
+  windowClosed: () => void
 }
 
 type UPClientProviderOptions = {
@@ -149,6 +159,9 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
         }
         options.clientChannel = channel.port1
         options.window = _up
+        _up.addEventListener('close', () => {
+          remote.emit('windowClosed')
+        })
         options.init = { chainId, accounts, rpcUrls }
         clientLog('client connected', event.data.type, event.data)
         options.clientChannel.postMessage({
@@ -178,29 +191,40 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
   })
 }
 
-async function findUP(authURL: string | Window | undefined | null, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider | undefined> {
-  if (typeof authURL === 'string') {
+async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider | undefined> {
+  if (typeof authURL === 'object' && !(authURL instanceof Window) && authURL?.url) {
     const info = localStorage.getItem(`upProvider:info:${authURL}`)
     if (info) {
       const { chainId, accounts, rpcUrls } = JSON.parse(info)
       options.init = { chainId, accounts, rpcUrls }
     }
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-      const popup = createWalletPopup()
-      if (popup) {
-        const current = await popup.openModal(authURL)
-        if (current) {
-          const up = await testWindow(current, remote, options)
+      if (authURL.mode === 'popup') {
+        const childWindow = window.open(authURL.url, 'UE Wallet', 'width=400,height=600')
+        if (childWindow) {
+          const up = await testWindow(childWindow, remote, options)
           if (up) {
             return up
           }
-          throw new Error('No UP found')
+        }
+      }
+      if (authURL.mode === 'iframe') {
+        const popup = createWalletPopup()
+        if (popup) {
+          const current = await popup.openModal(authURL.url)
+          if (current) {
+            const up = await testWindow(current, remote, options)
+            if (up) {
+              return up
+            }
+            throw new Error('No UP found')
+          }
         }
       }
     }
     return
   }
-  let current = window.opener || window.parent
+  const current = window instanceof Window ? window.opener || window.parent : null
   if (current) {
     const up = await testWindow(current, remote, options)
     if (up) {
@@ -213,17 +237,10 @@ async function findUP(authURL: string | Window | undefined | null, remote: UPCli
   if (typeof authURL === 'object' && authURL instanceof Window) {
     throw new Error('No UP found')
   }
-  current = window.open(authURL, 'UE Wallet', 'width=400,height=600')
-  if (current) {
-    const up = await testWindow(current, remote, options)
-    if (up) {
-      return up
-    }
-  }
   throw new Error('No UP found')
 }
 
-async function findDestination(authURL: string | Window | undefined | null, remote: UPClientProvider, options: UPClientProviderOptions, search = false): Promise<UPClientProvider> {
+async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider, options: UPClientProviderOptions, search = false): Promise<UPClientProvider> {
   let up: UPClientProvider | undefined =
     (typeof authURL === 'object' && authURL instanceof Window) || authURL == null
       ? await testWindow(authURL, remote, options).catch(error => {
@@ -274,7 +291,7 @@ async function findDestination(authURL: string | Window | undefined | null, remo
  * @param search If false then don't search but take the passed in value as is.
  * @returns the client UPProvider
  */
-function createClientUPProvider(authURL?: string | Window, search = true): UPClientProvider {
+function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClientProvider {
   let chainId = 0
   let accounts: (`0x${string}` | '')[] = []
   let rpcUrls: string[] = []
@@ -318,69 +335,86 @@ function createClientUPProvider(authURL?: string | Window, search = true): UPCli
     if (searchPromise) {
       return searchPromise
     }
-    searchPromise = findDestination(authURL, remote, options, search).then(up => {
-      const init:
-        | {
-            chainId: number
-            accounts: (`0x${string}` | '')[]
-            rpcUrls: string[]
-          }
-        | undefined = options.init
-      if (init) {
-        ;({ chainId, accounts, rpcUrls } = init || {})
-      }
-      options.clientChannel?.addEventListener('message', event => {
-        try {
-          const response = event.data
-          clientLog('client', response)
-          switch (response.method) {
-            case 'chainChanged':
-              chainId = response.params[0]
-              up.emit('chainChanged', chainId)
-              return
-            case 'accountsChanged':
-              accounts = response.params
-              up.emit('accountsChanged', accounts)
-              return
-            case 'rpcUrlsChanged':
-              rpcUrls = response.params
-              up.emit('rpcUrls', rpcUrls)
-              return
-          }
-          const item = pendingRequests.get(response.id)
-          if (response.id && item) {
-            const { resolve, reject } = item
-            if (response.result) {
-              client.receive({ ...response, id: item.id }) // Handle the response
-              resolve() // Resolve the corresponding promise
-            } else if (response.error) {
-              const { error: _error, jsonrpc } = response
-              const { method, params, id } = item
-              const error = {
-                ..._error,
-                message: `${_error.message} ${JSON.stringify(method)}(${JSON.stringify(params)})`,
-              }
-              // This is a real error log (maybe goes to sentry)
-              console.error('error', { error, method, params, id, jsonrpc })
-              client.receive({ ...response, id: item.id })
-              reject(error) // Reject in case of error
+    const activeSearchPromise = findDestination(authURL, remote, options, search)
+      .then(up => {
+        up?.addListener('windowClosed', () => {
+          searchPromise = null
+        })
+        const init:
+          | {
+              chainId: number
+              accounts: (`0x${string}` | '')[]
+              rpcUrls: string[]
             }
-            pendingRequests.delete(response.id) // Clean up the request
-          }
-        } catch (error) {
-          // This is a real error log (maybe goes to sentry)
-          console.error('Error parsing JSON RPC response', error, event)
+          | undefined = options.init
+        if (init) {
+          ;({ chainId, accounts, rpcUrls } = init || {})
         }
+        options.clientChannel?.addEventListener('message', event => {
+          try {
+            const response = event.data
+            clientLog('client', response)
+            switch (response.method) {
+              case 'chainChanged':
+                chainId = response.params[0]
+                up.emit('chainChanged', chainId)
+                return
+              case 'accountsChanged':
+                accounts = response.params
+                up.emit('accountsChanged', accounts)
+                return
+              case 'rpcUrlsChanged':
+                rpcUrls = response.params
+                up.emit('rpcUrls', rpcUrls)
+                return
+            }
+            const item = pendingRequests.get(response.id)
+            if (response.id && item) {
+              const { resolve, reject } = item
+              if (response.result) {
+                client.receive({ ...response, id: item.id }) // Handle the response
+                resolve() // Resolve the corresponding promise
+              } else if (response.error) {
+                const { error: _error, jsonrpc } = response
+                const { method, params, id } = item
+                const error = {
+                  ..._error,
+                  message: `${_error.message} ${JSON.stringify(method)}(${JSON.stringify(params)})`,
+                }
+                // This is a real error log (maybe goes to sentry)
+                console.error('error', { error, method, params, id, jsonrpc })
+                client.receive({ ...response, id: item.id })
+                reject(error) // Reject in case of error
+              }
+              pendingRequests.delete(response.id) // Clean up the request
+            }
+          } catch (error) {
+            // This is a real error log (maybe goes to sentry)
+            console.error('Error parsing JSON RPC response', error, event)
+          }
+        })
+        options.clientChannel?.start()
+        options.client = client
+
+        startupResolve()
+
+        return up
       })
-      options.clientChannel?.start()
-      options.client = client
+      .catch(error => {
+        options.client = client
 
-      startupResolve()
-
-      return up
-    })
-
-    return searchPromise
+        startupResolve()
+        searchPromise = null
+        throw error
+      })
+      .then(up => {
+        if (!up) {
+          searchPromise = null
+        }
+        return up
+      })
+    searchPromise = activeSearchPromise
+    return activeSearchPromise
   }
 
   const client = new JSONRPCClient(async (jsonRPCRequest: any) => {

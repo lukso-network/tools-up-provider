@@ -4,12 +4,15 @@ import { ref, watch, onMounted } from 'vue'
 import Web3, { type SupportedProviders, type EthExecutionAPI } from 'web3'
 import './Donate.scss'
 
+const props = defineProps<{
+  mode: 'popup' | 'iframe'
+}>()
 const chainId = ref<number | null>(null)
 const accounts = ref<string[]>([])
 const walletConnected = ref<boolean>(false)
 const presetAmounts = [0.01, 0.05, 0.1]
 const amount = ref<string>(presetAmounts[0].toString())
-const provider = createClientUPProvider(`${document.location.origin}/wallet`)
+const provider = createClientUPProvider({ url: `${document.location.origin}/wallet`, mode: props.mode })
 const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>)
 web3.eth
   ?.getChainId()
@@ -47,12 +50,16 @@ async function donate() {
     value: amount.value?.toString() || '0',
   })
 }
+function tryConnect() {
+  provider.request({ method: 'eth_requestAccounts' })
+}
 </script>
 
 <template>
   <div class="donate-widget">
-    <h3>Donate LYX</h3>
+    <h3>Donate LYX (local instance for testing)</h3>
     <div>
+      <button v-if="props.mode === 'popup'" @click="tryConnect">Open Wallet Popup</button>
       <label>Select Amount:</label>
       <select v-model="amount">
         <option v-for="amt in presetAmounts" :key="amt" :value="amt">{{ amt }} LYX</option>
