@@ -32,6 +32,7 @@
     "examples/astro-example"
   ],
   "dependencies": {
+    "lit": "^3.2.1",
     "typedoc": "^0.26.10",
     "wrangler": "^3.83.0"
   },
