@@ -12,7 +12,7 @@ const accounts = ref<string[]>([])
 const walletConnected = ref<boolean>(false)
 const presetAmounts = [0.01, 0.05, 0.1]
 const amount = ref<string>(presetAmounts[0].toString())
-const provider = createClientUPProvider({ url: `${document.location.origin}/wallet`, mode: props.mode })
+const provider = createClientUPProvider({ url: import.meta.env.MODE === 'production' ? 'https://auth.lukso.dev' : 'http://localhost:3000/wallet', mode: props.mode })
 const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>)
 web3.eth
   ?.getChainId()
