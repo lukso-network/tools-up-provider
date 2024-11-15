@@ -98,8 +98,8 @@ interface UPClientProvider {
    */
   removeAllListeners(event?: EventEmitter.EventNames<UPClientProviderEvents>): this
 
-  request(method: string, params: JSONRPCParams, clientParams: any): Promise<any>
-  request(method: { method: string; params: JSONRPCParams }, clientParams: any): Promise<any>
+  request(method: string, params: JSONRPCParams, clientParams?: any): Promise<any>
+  request(method: { method: string; params: JSONRPCParams }, clientParams?: any): Promise<any>
 
   get chainId(): number
 
