@@ -122,11 +122,16 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
     return !!(this.#options.accounts() || [])[0]
   }
 
-  async request(method: string | { method: string; params: JSONRPCParams }, params?: JSONRPCParams, clientParams?: any): Promise<any> {
+  async request(method: { method: string; params?: JSONRPCParams }, clientParams?: any): Promise<any>
+  async request(method: string, params?: JSONRPCParams, clientParams?: any): Promise<any>
+  async request(_method: string | { method: string; params?: JSONRPCParams }, _params?: JSONRPCParams, _clientParams?: any): Promise<any> {
     await this.#options?.startupPromise
     // Internally this will decode method.method and method.params if it was sent.
     // i.e. this method is patched.
-    return (this.#options?.client?.request as (method: string | { method: string; params: JSONRPCParams }, params?: JSONRPCParams, clientParams?: any) => Promise<any>)(method, params, clientParams) || null
+    const method = typeof _method === 'string' ? _method : _method.method
+    const params = typeof _method === 'string' ? _params : _method.params
+    const clientParams = typeof _method === 'string' ? _clientParams : _params
+    return this.#options?.client?.request(method, params, clientParams) || null
   }
 
   get chainId() {
