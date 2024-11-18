@@ -6,3 +6,5 @@
 ## Packages
 
 @lukso/up-provider
+
+[Docs](packages/up-provider/README.md)

@@ -164,9 +164,13 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
         }
         options.clientChannel = channel.port1
         options.window = _up
-        _up.addEventListener('close', () => {
-          remote.emit('windowClosed')
-        })
+        try {
+          _up.addEventListener('close', () => {
+            remote.emit('windowClosed')
+          })
+        } catch {
+          // Ignore
+        }
         options.init = { chainId, accounts, rpcUrls }
         clientLog('client connected', event.data.type, event.data)
         options.clientChannel.postMessage({
