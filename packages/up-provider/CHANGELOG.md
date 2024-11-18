@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.4](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.3...up-provider-v0.1.4) (2024-11-18)
+
+
+### Bug Fixes
+
+* Add lit dep ([cf4df29](https://github.com/lukso-network/tools-up-provider/commit/cf4df295e5eff82cde13584fa403775378733d6d))
+* Add popup test. ([87ee8dc](https://github.com/lukso-network/tools-up-provider/commit/87ee8dc07fbe8e9447ae28f4e0c86978620b6160))
+* Better optional types. ([f35c180](https://github.com/lukso-network/tools-up-provider/commit/f35c180743bd721a22136ccbc841198161ea3a05))
+* Fix ([ac18ade](https://github.com/lukso-network/tools-up-provider/commit/ac18adee10dd99d7e66b898a71b8d34a4a725437))
+* Further simplification of params ([b170fb1](https://github.com/lukso-network/tools-up-provider/commit/b170fb13946d2ba125435fc6bb293358825f2905))
+* Repair ([def72c6](https://github.com/lukso-network/tools-up-provider/commit/def72c65b72f6e6c78d6a049b63bd66fe35f360a))
+* Repair request parameters ([74208dd](https://github.com/lukso-network/tools-up-provider/commit/74208dd56fabc45791868bdba8c3eef14d985543))
+
 ## [0.1.3](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.2...up-provider-v0.1.3) (2024-10-30)
 
 
