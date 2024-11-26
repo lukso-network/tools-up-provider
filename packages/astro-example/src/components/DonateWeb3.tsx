@@ -1,5 +1,5 @@
 import { createClientUPProvider } from '@lukso/up-provider'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Web3, { type EthExecutionAPI, type SupportedProviders, type DataFormat, FMT_NUMBER, FMT_BYTES } from 'web3'
 import './Donate.scss'
 
@@ -12,10 +12,15 @@ const dataType: DataFormat = {
 
 const DonateWidget = () => {
   const [chainId, setChainId] = useState<number>(0)
-  const [accounts, setAccounts] = useState<Array<`0x${string}` | ''>>([])
+  const [accounts, setAccounts] = useState<Array<`0x${string}`>>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [amount, setAmount] = useState<number>(0.01)
   const presetAmounts = [0.01, 0.05, 0.1]
+
+  const updateConnected = useCallback((accounts: Array<`0x${string}`>, chainId: number) => {
+    console.log(accounts, chainId)
+    setWalletConnected(accounts.length > 0 && accounts[0] !== '0x' && chainId === 42)
+  }, [])
 
   useEffect(() => {
     async function init() {
@@ -23,10 +28,10 @@ const DonateWidget = () => {
         const _chainId: number = (await web3.eth.getChainId(dataType)) as number
         setChainId(_chainId)
 
-        const _accounts = (await web3.eth.getAccounts()) as Array<`0x${string}` | ''>
+        const _accounts = (await web3.eth.getAccounts()) as Array<`0x${string}`>
         setAccounts(_accounts)
 
-        setWalletConnected(_accounts.length > 0 && _chainId === 42)
+        updateConnected(_accounts, _chainId)
       } catch (error) {
         // Ignore error
       }
@@ -34,14 +39,14 @@ const DonateWidget = () => {
 
     init()
 
-    const accountsChanged = (_accounts: Array<`0x${string}` | ''>) => {
+    const accountsChanged = (_accounts: Array<`0x${string}`>) => {
       setAccounts(_accounts)
-      setWalletConnected(_accounts.length > 0 && chainId === 42)
+      updateConnected(_accounts, chainId)
     }
 
     const chainChanged = (_chainId: number) => {
       setChainId(_chainId)
-      setWalletConnected(accounts.length > 0 && _chainId === 42)
+      updateConnected(accounts, _chainId)
     }
 
     provider.on('accountsChanged', accountsChanged)
@@ -51,7 +56,7 @@ const DonateWidget = () => {
       provider.removeListener('accountsChanged', accountsChanged)
       provider.removeListener('chainChanged', chainChanged)
     }
-  }, [chainId, accounts])
+  }, [chainId, accounts[0], accounts[1], updateConnected])
 
   const donate = async () => {
     if (walletConnected && amount) {

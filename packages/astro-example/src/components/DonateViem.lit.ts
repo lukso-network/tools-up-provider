@@ -67,7 +67,7 @@ class DonateWidget extends LitElement {
   `
 
   @property({ type: Number }) chainId = 0
-  @property({ type: Array<`0x${string}` | ''> }) accounts: Array<`0x${string}` | ''> = []
+  @property({ type: Array<`0x${string}`> }) accounts: Array<`0x${string}`> = []
   @property({ type: Boolean }) walletConnected = false
   @property({ type: Number }) amount = 0.01
   @state() presetAmounts = [0.01, 0.05, 0.1]
@@ -81,7 +81,7 @@ class DonateWidget extends LitElement {
   }
 
   calculateEnabled() {
-    this.disabled = !this.amount || !this.accounts[0] || !this.accounts[1] || this.accounts[0] === this.accounts[1] || this.chainId !== 42
+    this.disabled = !this.amount || this.accounts[0] === '0x' || !this.accounts[1] || this.accounts[0] === this.accounts[1] || this.chainId !== 42
     console.log({ amount: this.amount, accounts: this.accounts, chainId: this.chainChanged, disabled: this.disabled })
   }
 
@@ -93,8 +93,8 @@ class DonateWidget extends LitElement {
   async init() {
     try {
       this.chainId = Number(await client.getChainId())
-      this.accounts = (await client.getAddresses()) as Array<`0x${string}` | ''>
-      this.walletConnected = this.accounts.length > 0 && this.chainId === 42
+      this.accounts = (await client.getAddresses()) as Array<`0x${string}`>
+      this.walletConnected = this.accounts.length > 0 && this.accounts[0] !== '0x' && this.chainId === 42
     } catch (error) {
       // Ignore error
     }
@@ -103,7 +103,7 @@ class DonateWidget extends LitElement {
     provider.on('chainChanged', this.chainChanged.bind(this))
   }
 
-  accountsChanged(_accounts: Array<`0x${string}` | ''>) {
+  accountsChanged(_accounts: Array<`0x${string}`>) {
     this.accounts = _accounts
     this.walletConnected = this.accounts.length > 0 && this.chainId === 42
   }

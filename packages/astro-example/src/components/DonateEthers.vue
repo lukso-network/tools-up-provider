@@ -21,22 +21,22 @@ ethersProvider
     // Ignore error
   })
 ethersProvider.provider
-  .send('eth_requestAccounts', [])
+  .send('eth_accounts', [])
   .then(_accounts => {
     accounts.value = _accounts || []
   })
   .catch(error => {
     // Ignore error
   })
-provider.on('accountsChanged', (_accounts: (`0x${string}` | '')[]) => {
+provider.on('accountsChanged', (_accounts: `0x${string}`[]) => {
   accounts.value = _accounts
 })
 provider.on('chainChanged', (_chainId: number) => {
   chainId.value = _chainId
 })
 watch(
-  () => [chainId.value, accounts.value] as [number, Array<`0x${string}` | ''>],
-  ([chainId, accounts]: [number, Array<`0x${string}` | ''>]) => {
+  () => [chainId.value, accounts.value] as [number, Array<`0x${string}`>],
+  ([chainId, accounts]: [number, Array<`0x${string}`>]) => {
     walletConnected.value = !!accounts?.[0] && !!accounts?.[1] && chainId === 42
   }
 )

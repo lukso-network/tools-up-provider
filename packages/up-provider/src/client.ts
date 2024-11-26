@@ -29,10 +29,10 @@ type UPWindowConfig =
 interface UPClientProviderEvents {
   connected: () => void
   disconnected: () => void
-  accountsChanged: (accounts: (`0x${string}` | '')[]) => void
-  requestAccounts: (accounts: (`0x${string}` | '')[]) => void
+  accountsChanged: (accounts: `0x${string}`[]) => void
+  requestAccounts: (accounts: `0x${string}`[]) => void
   chainChanged: (chainId: number) => void
-  injected: (page: `0x${string}` | '') => void
+  injected: (page: `0x${string}`) => void
   rpcUrls: (rpcUrls: string[]) => void
   windowClosed: () => void
 }
@@ -40,13 +40,13 @@ interface UPClientProviderEvents {
 type UPClientProviderOptions = {
   client?: JSONRPCClient
   chainId: () => number
-  accounts: () => (`0x${string}` | '')[]
+  accounts: () => `0x${string}`[]
   window?: Window
   clientChannel?: MessagePort
   startupPromise: Promise<void>
   init?: {
     chainId: number
-    accounts: (`0x${string}` | '')[]
+    accounts: `0x${string}`[]
     rpcUrls: string[]
   }
 }
@@ -103,7 +103,7 @@ interface UPClientProvider {
 
   get chainId(): number
 
-  get accounts(): (`0x${string}` | '')[]
+  get accounts(): `0x${string}`[]
 
   get isConnected(): boolean
 }
@@ -302,7 +302,7 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
  */
 function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClientProvider {
   let chainId = 0
-  let accounts: (`0x${string}` | '')[] = []
+  let accounts: `0x${string}`[] = []
   let rpcUrls: string[] = []
   let startupResolve: () => void
 
@@ -352,7 +352,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
         const init:
           | {
               chainId: number
-              accounts: (`0x${string}` | '')[]
+              accounts: `0x${string}`[]
               rpcUrls: string[]
             }
           | undefined = options.init
