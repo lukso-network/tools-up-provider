@@ -13,15 +13,26 @@ const client = createWalletClient({
 @customElement('donate-widget')
 class DonateWidget extends LitElement {
   static styles = css`
+    :host {
+      width: 100%;
+      height: 100%;
+    }
+
+    .widget {
+      display: flex; /* Enable flexbox for the widget content */
+      flex-direction: column; /* Match parent direction if necessary */
+      height: 100%; /* Take up full height of :host */
+      width: 100%; /* Take up full width of :host */
+    }
+
     .donate-widget {
       border: 2px solid #d1d1d1; /* Light border */
       border-radius: 12px; /* Rounded corners */
       padding: 20px; /* Inner padding */
-      margin: 20px auto; /* Centered with margin */
-      max-width: 300px; /* Constrain width */
       background-color: #f9f9f9; /* Light background */
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Soft shadow */
       text-align: center; /* Center text */
+      flex: 1; /* Fill available space */
     }
 
     .donate-widget h3 {
@@ -36,8 +47,8 @@ class DonateWidget extends LitElement {
       color: #555;
     }
 
-    .donate-widget select {
-      width: 100%;
+    .donate-widget input {
+      width: calc(100% - 8px);
       padding: 8px;
       border-radius: 8px;
       border: 1px solid #d1d1d1;
@@ -69,7 +80,11 @@ class DonateWidget extends LitElement {
   @property({ type: Number }) chainId = 0
   @property({ type: Array<`0x${string}`> }) accounts: Array<`0x${string}`> = []
   @property({ type: Boolean }) walletConnected = false
-  @property({ type: Number }) amount = 0.01
+  @property({ type: Number }) minAmount = 0.25
+  @property({ type: Number }) maxAmount = 1000
+  @property({ type: Number }) defaultAmount = this.minAmount
+  @state() error = '' // Error message for validation feedback
+  @state() amount = this.defaultAmount
   @state() presetAmounts = [0.01, 0.05, 0.1]
   @state() disabled = true
 
@@ -83,6 +98,21 @@ class DonateWidget extends LitElement {
   calculateEnabled() {
     this.disabled = !this.amount || this.accounts[0] === '0x' || !this.accounts[1] || this.accounts[0] === this.accounts[1] || this.chainId !== 42
     console.log({ amount: this.amount, accounts: this.accounts, chainId: this.chainChanged, disabled: this.disabled })
+  }
+
+  validateAmount() {
+    if (this.amount < this.minAmount) {
+      this.error = `Amount must be at least ${this.minAmount} LYX.`
+    } else if (this.amount > this.maxAmount) {
+      this.error = `Amount cannot exceed ${this.maxAmount} LYX.`
+    } else {
+      this.error = '' // Clear error if valid
+    }
+  }
+
+  handleInput(e: InputEvent) {
+    this.amount = Number.parseFloat((e.target as HTMLInputElement)?.value)
+    this.validateAmount()
   }
 
   constructor() {
@@ -125,21 +155,16 @@ class DonateWidget extends LitElement {
 
   render() {
     return html`
-      <div class="donate-widget">
-        <h3>Donate LYX LIT</h3>
-        <div>
-          <label for="selectId">Select Amount:</label>
-          <select
-            id="selectId"
-            .value="${this.amount}"
-            @change="${(e: Event) => {
-              this.amount = Number((e.target as null | undefined | { value: string })?.value)
-            }}"
-          >
-            ${this.presetAmounts.map(amt => html` <option value="${amt}">${amt} LYX</option> `)}
-          </select>
+      <div class="widget">
+        <div class="donate-widget">
+          <h3>Donate LYX LIT<br />${this.accounts[1] !== '0x' ? this.accounts[1] : 'not connected'}</h3>
+          <div>
+            <label for="amount">Enter Amount:</label>
+            <input id="amount" type="number" .value="${this.amount}" @input="${this.handleInput}" min="${this.minAmount}" max="${this.maxAmount}" step="1" />
+            ${this.error ? html`<p>${this.error}</p>` : ''}
+          </div>
+          <button type="button" ?disabled="${this.disabled}" @click="${this.donate}">Donate ${this.amount} LYX</button>
         </div>
-        <button type="button" ?disabled="${this.disabled}" @click="${this.donate}">Donate ${this.amount} LYX</button>
       </div>
     `
   }

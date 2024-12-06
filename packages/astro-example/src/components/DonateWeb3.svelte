@@ -7,8 +7,6 @@
   let accounts: string[] = [];
   let walletConnected = false;
   const presetAmounts = [0.01, 0.05, 0.1];
-  // biome-ignore lint/style/useConst: <explanation>
-  let amount = presetAmounts[0];
 
   const provider = createClientUPProvider();
   const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
@@ -17,7 +15,26 @@
     walletConnected = !!accounts[0] && !!accounts[1] && chainId === 42;
   }
 
+  let error = ''; // Error message for validation feedback
+  // biome-ignore lint/style/useConst: <explanation>
+  let amount = 1; // Initial amount
+
+  const minAmount = 0.25; // Minimum allowed value
+  const maxAmount = 1000; // Maximum allowed value
+
+  // Validation function
+  const validateAmount = () => {
+    if (amount < minAmount) {
+      error = `Amount must be at least ${minAmount} LYX.`;
+    } else if (amount > maxAmount) {
+      error = `Amount cannot exceed ${maxAmount} LYX.`;
+    } else {
+      error = ''; // Clear error if valid
+    }
+  };
+
   onMount(() => {
+    validateAmount();
     web3.eth.getChainId()
       .then((_chainId: bigint) => {
         chainId = Number(_chainId);
@@ -48,19 +65,28 @@
       from: accounts[0],
       to: accounts[1],
       value: web3.utils.toWei(amount, "ether")
-    });
+    },
+    undefined,
+    { checkRevertBeforeSending: false });
   }
 </script>
 
 <div class="donate-widget">
-  <h3>Donate LYX</h3>
+  <h3>Donate LYX<br/>{ accounts[1] !== '0x' ? accounts[1] : 'not connected' }</h3>
   <div>
-    <label for="selectId">Select Amount:</label>
-    <select id="selectId" bind:value={amount}>
-      {#each presetAmounts as amt}
-        <option value={amt}>{amt} LYX</option>
-      {/each}
-    </select>
+    <label for="amount">Enter Amount:</label>
+    <input
+      id="amount"
+      type="number"
+      bind:value={amount}
+      min={minAmount}
+      max={maxAmount}
+      step="1"
+      on:input={validateAmount}
+    />
+    {#if error}
+      <p style="color: red;">{error}</p>
+    {/if}
   </div>
   <button on:click={donate} disabled={!walletConnected || !amount}>
     Donate {amount} LYX
@@ -72,11 +98,10 @@
   border: 2px solid #d1d1d1; /* Light border */
   border-radius: 12px; /* Rounded corners */
   padding: 20px; /* Inner padding */
-  margin: 20px auto; /* Centered with margin */
-  max-width: 300px; /* Constrain width */
   background-color: #f9f9f9; /* Light background */
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Soft shadow */
   text-align: center; /* Center text */
+  flex: 1; /* Fill available space */
 }
 
 .donate-widget h3 {
@@ -91,8 +116,8 @@
   color: #555;
 }
 
-.donate-widget select {
-  width: 100%;
+.donate-widget input {
+  width: calc(100% - 8px);
   padding: 8px;
   border-radius: 8px;
   border: 1px solid #d1d1d1;

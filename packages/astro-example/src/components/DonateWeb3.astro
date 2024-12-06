@@ -1,19 +1,17 @@
 ---
 // Client-only initialization of variables
-const presetAmounts = [0.01, 0.05, 0.1];
+const minValue = 0.25;
+const maxValue = 1000;
 ---
 
 <div class="donate-widget">
-  <h3>Donate LYX</h3>
+  <h3>Donate LYX<br/><span id="accountNumber"/></h3>
   <div>
-    <label for="selectId">Select Amount:</label>
-    <select id="selectId">
-      {presetAmounts.map(amt => (
-        <option value={amt}>{amt} LYX</option>
-      ))}
-    </select>
+    <label for="inputId">Enter Amount:</label>
+    <input id="inputId" type="number" value={minValue} min={minValue} step="0.01" placeholder="Enter amount in LYX" />
+    <p id="errorMessage" style="color: red;"></p>
   </div>
-  <button id="donateButton" disabled>Donate {presetAmounts[0]} LYX</button>
+  <button id="donateButton" disabled>Donate LYX</button>
 </div>
 
 <script type="module">
@@ -22,54 +20,53 @@ const presetAmounts = [0.01, 0.05, 0.1];
 
 <style>
   .donate-widget {
-    border: 2px solid #d1d1d1;
-    border-radius: 12px;
-    padding: 20px;
-    margin: 20px auto;
-    max-width: 300px;
-    background-color: #f9f9f9;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    text-align: center;
-  }
+  border: 2px solid #d1d1d1; /* Light border */
+  border-radius: 12px; /* Rounded corners */
+  padding: 20px; /* Inner padding */
+  background-color: #f9f9f9; /* Light background */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Soft shadow */
+  text-align: center; /* Center text */
+  flex: 1; /* Fill available space */
+}
 
-  .donate-widget h3 {
-    margin-top: 0;
-    color: #333;
-  }
+.donate-widget h3 {
+  margin-top: 0; /* Remove extra space above heading */
+  color: #333; /* Darker text for contrast */
+}
 
-  .donate-widget label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: bold;
-    color: #555;
-  }
+.donate-widget label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #555;
+}
 
-  .donate-widget select {
-    width: 100%;
-    padding: 8px;
-    border-radius: 8px;
-    border: 1px solid #d1d1d1;
-    margin-bottom: 15px;
-  }
+.donate-widget input {
+  width: calc(100% - 8px);
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #d1d1d1;
+  margin-bottom: 15px;
+}
 
-  .donate-widget button {
-    width: 100%;
-    padding: 10px;
-    border-radius: 8px;
-    background-color: #4caf50;
-    color: white;
-    font-weight: bold;
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-  }
+.donate-widget button {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  background-color: #4caf50; /* Green background */
+  color: white;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
 
-  .donate-widget button:hover {
-    background-color: #45a049;
-  }
+.donate-widget button:hover {
+  background-color: #45a049; /* Darker green on hover */
+}
 
-  .donate-widget button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-  }
+.donate-widget button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
 </style>

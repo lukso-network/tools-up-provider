@@ -453,7 +453,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   const wrapper = async (method: string, params?: unknown[]) => {
     switch (method) {
       case 'eth_call':
-        if (rpcUrls.length > 0) {
+        if (rpcUrls.length > 0 && Object.keys((params?.[0] ?? {}) as Record<string, unknown>).every(key => !/^gasPrice|maxFeePerGas|maxPriorityFeePerGas|value$/.test(key))) {
           clientLog('client direct rpc', rpcUrls, method, params)
 
           const urls = [...rpcUrls]

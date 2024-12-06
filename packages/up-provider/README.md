@@ -125,7 +125,7 @@ web3.eth
   ?.getChainId()
   .then(_chainId => {
     chainId.value = Number(_chainId)
-    walletConnected.value = !!accounts.value[0] && !!accounts.value[1] && chainId.value === 42
+    walletConnected.value = accounts.value[0] !== '0x' && accounts.value[1] !== '0x' && chainId.value === 42
   })
   .catch(error => {
     // Ignore error
@@ -147,7 +147,7 @@ provider.on('chainChanged', (_chainId: number) => {
 watch(
   () => [chainId.value, accounts.value] as [number, Array<`0x${string}`>],
   ([chainId, accounts]: [number, Array<`0x${string}`>]) => {
-    walletConnected.value = !!accounts?.[0] && !!accounts?.[1] && chainId === 42
+    walletConnected.value = accounts?.[0] !== '0x' && accounts?.[1] !== '0x' && chainId === 42
   }
 )
 ```

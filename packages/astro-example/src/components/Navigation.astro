@@ -1,7 +1,7 @@
 ---
 const currentPath = Astro.url.pathname;
 ---
-<div class="nav">
+<div class="nav">&nbsp;
   <a href="/" class={`button-link ${currentPath === '/' ? 'disabled' : ''}`}>Vue Web3</a>
   <a href="/react-web3" class={`button-link ${currentPath === '/react-web3' ? 'disabled' : ''}`}>React Web3</a>
   <a href="/react-viem" class={`button-link ${currentPath === '/react-viem' ? 'disabled' : ''}`}>React Viem</a>
@@ -12,11 +12,16 @@ const currentPath = Astro.url.pathname;
 </div>
 <style>
 .nav {
-  padding-top: 100px;
-  display: flex;
   justify-content: center;
-  gap: 10px;
-  margin: 20px;
+  z-index: 1000;
+  margin-bottom: -1em;
+
+  & a {
+    display: none;
+  }
+  &:hover a {
+    display: inline-block;
+  }
 }
 a.button-link {
   display: inline-block;
