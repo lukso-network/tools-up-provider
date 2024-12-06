@@ -370,7 +370,11 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                 return
               case 'accountsChanged':
                 accounts = response.params
-                up.emit('accountsChanged', accounts)
+                up.emit(
+                  'accountsChanged',
+                  // Cleanup wrong null or undefined.
+                  accounts.map(a => (!a ? '0x' : a))
+                )
                 return
               case 'rpcUrlsChanged':
                 rpcUrls = response.params
