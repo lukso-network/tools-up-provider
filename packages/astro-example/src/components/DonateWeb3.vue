@@ -40,6 +40,8 @@ provider.on('chainChanged', (_chainId: number) => {
   chainId.value = _chainId
 })
 
+const isEmptyAccount = (value: string) => !value || value === '0x'
+
 // Watch all changes and compose a walletConnected boolean flag.
 // Empty accounts (or disconnected) are represented by '0x' or undefined.
 // Inside of the universaleverything.io grid, accounts[1] is always the page owner.
@@ -51,7 +53,7 @@ watch(
     // For example if you check for accounts?.[0] !== accounts?.[1] you can
     // ensure that the connected account is not the page owner.
     // The button will be disabled if the walletConnected flag is false.
-    walletConnected.value = accounts?.[0] !== '0x' && accounts?.[1] !== '0x' && chainId === 42
+    walletConnected.value = !isEmptyAccount(accounts?.[0]) && !isEmptyAccount(accounts?.[1]) && chainId === 42
   }
 )
 

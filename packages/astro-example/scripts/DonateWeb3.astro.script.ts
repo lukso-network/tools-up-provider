@@ -6,6 +6,8 @@ let chainId = 0
 let accounts: Array<`0x${string}`> = ['0x', '0x']
 let walletConnected = false
 
+const isEmptyAccount = (value: string) => !value || value === '0x'
+
 // Function to initialize provider and Web3 on the client side
 function initWidget() {
   const provider = createClientUPProvider()
@@ -13,7 +15,7 @@ function initWidget() {
 
   // Update wallet connection status
   function checkWalletStatus() {
-    walletConnected = accounts.length > 1 && accounts[0] !== '0x' && accounts[1] !== '0x' && chainId === 42
+    walletConnected = accounts.length > 1 && !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42
     const button: HTMLButtonElement = document.getElementById('donateButton') as HTMLButtonElement
     button.disabled = !walletConnected
     const accountNumber = document.getElementById('accountNumber')

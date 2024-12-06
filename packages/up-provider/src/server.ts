@@ -140,7 +140,7 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
       for (let i = 0; i < (page?.length || 0); i++) {
         this.#accounts[i + 1] = page[i]
       }
-      await this.send('accountsChanged', [this.#getter() ? primary : '0x', ...this.#accounts.slice(1)])
+      await this.send('accountsChanged', [this.#getter() ? primary : '0x', ...this.#accounts.slice(1).map(value => value || '0x')])
       if (primaryChanged) {
         this.emit(this.#getter() && this.#accounts[0] ? 'connected' : 'disconnected')
       }

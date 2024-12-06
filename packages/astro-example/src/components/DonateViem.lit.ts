@@ -88,6 +88,10 @@ class DonateWidget extends LitElement {
   @state() presetAmounts = [0.01, 0.05, 0.1]
   @state() disabled = true
 
+  isEmptyAccount(value: string) {
+    return !value || value === '0x'
+  }
+
   // Watch for changes in propA and propB
   updated(changedProperties: Map<PropertyKey, unknown>) {
     if (changedProperties.has('amount') || changedProperties.has('accounts') || changedProperties.has('chainId')) {
@@ -96,7 +100,7 @@ class DonateWidget extends LitElement {
   }
 
   calculateEnabled() {
-    this.disabled = !this.amount || this.accounts[0] === '0x' || !this.accounts[1] || this.accounts[0] === this.accounts[1] || this.chainId !== 42
+    this.disabled = !this.amount || this.isEmptyAccount(this.accounts[0]) || this.isEmptyAccount(this.accounts[1]) || this.accounts[0] === this.accounts[1] || this.chainId !== 42
     console.log({ amount: this.amount, accounts: this.accounts, chainId: this.chainChanged, disabled: this.disabled })
   }
 

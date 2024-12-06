@@ -4,6 +4,8 @@ import { type Eip1193Provider, ethers } from 'ethers'
 import { ref, watch } from 'vue'
 import './Donate.scss'
 
+const isEmptyAccount = (value: string) => !value || value === '0x'
+
 const chainId = ref<number | null>(null)
 const accounts = ref<string[]>([])
 const walletConnected = ref<boolean>(false)
@@ -13,7 +15,7 @@ ethersProvider
   .send('eth_chainId', [])
   .then(_chainId => {
     chainId.value = _chainId
-    walletConnected.value = !!accounts.value[0] && !!accounts.value[1] && chainId.value === 42
+    walletConnected.value = !isEmptyAccount(accounts.value[0]) && !isEmptyAccount(accounts.value[1]) && chainId.value === 42
   })
   .catch(error => {
     // Ignore error

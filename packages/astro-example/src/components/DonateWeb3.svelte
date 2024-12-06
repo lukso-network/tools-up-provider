@@ -11,8 +11,10 @@
   const provider = createClientUPProvider();
   const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
 
+    const isEmptyAccount = (value: string) => !value || value === '0x'
+
   function checkWalletStatus() {
-    walletConnected = !!accounts[0] && !!accounts[1] && chainId === 42;
+    walletConnected = !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42;
   }
 
   let error = ''; // Error message for validation feedback

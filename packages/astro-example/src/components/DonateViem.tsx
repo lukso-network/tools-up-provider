@@ -17,6 +17,8 @@ const client = createWalletClient({
 const minAmount = 0.25
 const maxAmount = 1000
 
+const isEmptyAccount = (value: string) => !value || value === '0x'
+
 const DonateWidget = () => {
   const [chainId, setChainId] = useState<number>(0)
   const [accounts, setAccounts] = useState<Array<`0x${string}`>>([])
@@ -41,7 +43,7 @@ const DonateWidget = () => {
 
   const updateConnected = useCallback((accounts: Array<`0x${string}`>, chainId: number) => {
     console.log(accounts, chainId)
-    setWalletConnected(accounts.length > 0 && accounts[0] !== '0x' && chainId === 42)
+    setWalletConnected(accounts.length > 0 && !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42)
   }, [])
 
   useEffect(() => {
@@ -70,7 +72,7 @@ const DonateWidget = () => {
 
       console.log(accounts, _chainId)
 
-      setWalletConnected(accounts.length > 0 && !!accounts[0] && _chainId === 42)
+      setWalletConnected(accounts.length > 0 && !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && _chainId === 42)
     }
 
     provider.on('accountsChanged', accountsChanged)
