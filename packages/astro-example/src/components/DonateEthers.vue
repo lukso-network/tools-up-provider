@@ -28,6 +28,10 @@ ethersProvider.provider
   .catch(error => {
     // Ignore error
   })
+// Monitor accountsChanged and chainChained events
+// This is how a grid widget gets it's accounts and chainId.
+// Don't call eth_requestAccounts() directly to connect,
+// The connection will be injected by the grid parent page.
 provider.on('accountsChanged', (_accounts: `0x${string}`[]) => {
   accounts.value = _accounts
 })
@@ -55,6 +59,11 @@ const validateAmount = () => {
 
 // Optionally validate immediately on load or updates
 watch(amount, validateAmount)
+
+// Watch all changes and compose a walletConnected boolean flag.
+// Empty accounts (or disconnected) are represented by '0x' or undefined.
+// Inside of the universaleverything.io grid, accounts[1] is always the page owner.
+// The accounts[0] is either '0x' or the connected user.
 watch(
   () => [chainId.value, accounts.value] as [number, Array<`0x${string}`>],
   ([chainId, accounts]: [number, Array<`0x${string}`>]) => {

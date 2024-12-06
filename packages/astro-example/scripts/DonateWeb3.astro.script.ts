@@ -35,12 +35,14 @@ function initWidget() {
     checkWalletStatus()
   }
 
-  // Set up event listeners for account and chain changes
+  // Monitor accountsChanged and chainChained events
+  // This is how a grid widget gets it's accounts and chainId.
+  // Don't call eth_requestAccounts() directly to connect,
+  // The connection will be injected by the grid parent page.
   provider.on('accountsChanged', _accounts => {
     accounts = _accounts
     checkWalletStatus()
   })
-
   provider.on('chainChanged', _chainId => {
     chainId = _chainId
     checkWalletStatus()

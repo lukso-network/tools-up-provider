@@ -46,6 +46,10 @@ const DonateWidget = () => {
     setWalletConnected(accounts.length > 0 && !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42)
   }, [])
 
+  // Monitor accountsChanged and chainChained events
+  // This is how a grid widget gets it's accounts and chainId.
+  // Don't call eth_requestAccounts() directly to connect,
+  // The connection will be injected by the grid parent page.
   useEffect(() => {
     async function init() {
       try {
