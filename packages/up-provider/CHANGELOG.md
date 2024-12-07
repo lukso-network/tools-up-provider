@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.5...up-provider-v0.1.6) (2024-12-07)
+
+
+### Bug Fixes
+
+* Switch to using null address ([447af37](https://github.com/lukso-network/tools-up-provider/commit/447af37acb9b2804831acd8d028e439f53fdc9cf))
+
 ## [0.1.5](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.4...up-provider-v0.1.5) (2024-12-07)
 
 
