@@ -47,7 +47,7 @@ const browserProvider = new ethers.BrowserProvider(upProvider as unknown as Eip1
 The grid widget up-provider mirrors the chain and accounts provided by the parent page's
 provider and configuration. When the grid widget connects it can call eth_accounts
 to get a list of accounts. By default the accounts[0] will represent the user's address
-but will initially return '0x' meaning that the grid widget does not yet have permissions
+but will initially return '0x0*' meaning that the grid widget does not yet have permissions
 to connect to the extension. Once the user clicks the connect button above the widget
 a "accountsChanged" event will trigger to supply the user with the native connection
 the page is connected to. accounts[1] will represent the address of the owner
@@ -58,7 +58,8 @@ useful to send funds yto yourself.
 Most of the time the condition for "it's ok to send transactions would be"
 
 ```js
-const accountConnected = accounts[0] !== '0x' && accounts[0] !== accounts[1] && chainId === 42;
+import { isEmptyAccount } from "@lukso/up-provider";
+const accountConnected = !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[0]) && chainId === 42;
 ```
 
 You should use some kind of watch/useEffect or other reactive function to watch the
@@ -75,7 +76,7 @@ const [chainId, setChainId] = useState<number>(0)
 
   const updateConnected = useCallback((accounts: Array<`0x${string}`>, chainId: number) => {
     console.log(accounts, chainId)
-    setWalletConnected(accounts.length > 0 && accounts[0] !== '0x' && chainId === 42)
+    setWalletConnected(accounts.length > 0 && !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42)
   }, [])
 
   useEffect(() => {
@@ -125,7 +126,7 @@ web3.eth
   ?.getChainId()
   .then(_chainId => {
     chainId.value = Number(_chainId)
-    walletConnected.value = accounts.value[0] !== '0x' && accounts.value[1] !== '0x' && chainId.value === 42
+    walletConnected.value = !isEmptyAccount(accounts.value[0]) && !isEmptyAccount(accounts.value[1]) && chainId.value === 42
   })
   .catch(error => {
     // Ignore error
@@ -147,7 +148,7 @@ provider.on('chainChanged', (_chainId: number) => {
 watch(
   () => [chainId.value, accounts.value] as [number, Array<`0x${string}`>],
   ([chainId, accounts]: [number, Array<`0x${string}`>]) => {
-    walletConnected.value = accounts?.[0] !== '0x' && accounts?.[1] !== '0x' && chainId === 42
+    walletConnected.value = !isEmptyAccount(accounts?.[0]) && !isEmptyAccount(accounts?.[1]) && chainId === 42
   }
 )
 ```
