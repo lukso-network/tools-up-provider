@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.5](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.4...up-provider-v0.1.5) (2024-12-07)
+
+
+### Bug Fixes
+
+* Add isEmptyAccount ([c383044](https://github.com/lukso-network/tools-up-provider/commit/c38304474bce213f0ba63bfcef47580aa9441a62))
+* Add some more docs ([943123f](https://github.com/lukso-network/tools-up-provider/commit/943123f9040eccf05cbed0fb0065bd98674da6c6))
+* Cleanup wrong null or undefined. ([fbae586](https://github.com/lukso-network/tools-up-provider/commit/fbae5866b8ae907e7aa59867219fb22d1198f1d2))
+* Do some more repairs ([07b7dbb](https://github.com/lukso-network/tools-up-provider/commit/07b7dbb9bec0995748edc885c3b33a62f0733769))
+* More work ([c84ea8e](https://github.com/lukso-network/tools-up-provider/commit/c84ea8e9c3864f22a31b09bf90929a8da1151a7a))
+* Repair, unfortunately we cannot skip an account ([8d58881](https://github.com/lukso-network/tools-up-provider/commit/8d58881d024edb2baadb33dea0fd291511e1c9a1))
+
 ## [0.1.4](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.3...up-provider-v0.1.4) (2024-11-18)
 
 
