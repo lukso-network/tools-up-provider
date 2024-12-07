@@ -13,7 +13,7 @@ const dataType: DataFormat = {
 const minAmount = 0.25
 const maxAmount = 1000
 
-const isEmptyAccount = (value: string) => !value || value === '0x'
+const isEmptyAccount = (value: string) => !value
 
 const DonateWidget = () => {
   const [chainId, setChainId] = useState<number>(0)
@@ -101,7 +101,7 @@ const DonateWidget = () => {
       <h3>
         Donate LYX
         <br />
-        {accounts[1] !== '0x' ? accounts[1] : 'not connected'}
+        {!isEmptyAccount(accounts[1]) ? accounts[1] : 'not connected'}
       </h3>
       <div>
         <label htmlFor="amount">Enter Amount:</label>

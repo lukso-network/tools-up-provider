@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import image from './UniversalProfiles_Apps_Logo_96px.svg'
 import { create } from 'domain'
 import { createWalletPopup } from './popup'
+import { cleanupAccounts } from './index'
 
 const clientLog = debug('upProvider:client')
 
@@ -373,7 +374,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                 up.emit(
                   'accountsChanged',
                   // Cleanup wrong null or undefined.
-                  accounts.map(a => (!a ? '0x' : a))
+                  cleanupAccounts(accounts)
                 )
                 return
               case 'rpcUrlsChanged':

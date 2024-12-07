@@ -89,7 +89,7 @@ class DonateWidget extends LitElement {
   @state() disabled = true
 
   isEmptyAccount(value: string) {
-    return !value || value === '0x'
+    return !value || /0x0*$/.test(value)
   }
 
   // Watch for changes in propA and propB
@@ -128,7 +128,7 @@ class DonateWidget extends LitElement {
     try {
       this.chainId = Number(await client.getChainId())
       this.accounts = (await client.getAddresses()) as Array<`0x${string}`>
-      this.walletConnected = this.accounts.length > 0 && this.accounts[0] !== '0x' && this.chainId === 42
+      this.walletConnected = this.accounts.length > 0 && !this.isEmptyAccount(this.accounts[0]) && !this.isEmptyAccount(this.accounts[1]) && this.chainId === 42
     } catch (error) {
       // Ignore error
     }
@@ -161,7 +161,7 @@ class DonateWidget extends LitElement {
     return html`
       <div class="widget">
         <div class="donate-widget">
-          <h3>Donate LYX LIT<br />${this.accounts[1] !== '0x' ? this.accounts[1] : 'not connected'}</h3>
+          <h3>Donate LYX LIT<br />${!this.isEmptyAccount(this.accounts[1]) ? this.accounts[1] : 'not connected'}</h3>
           <div>
             <label for="amount">Enter Amount:</label>
             <input id="amount" type="number" .value="${this.amount}" @input="${this.handleInput}" min="${this.minAmount}" max="${this.maxAmount}" step="1" />

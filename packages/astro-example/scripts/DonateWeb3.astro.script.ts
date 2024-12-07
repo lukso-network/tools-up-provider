@@ -3,10 +3,10 @@ import Web3, { type EthExecutionAPI, type SupportedProviders } from 'web3'
 
 let amount = 0.01
 let chainId = 0
-let accounts: Array<`0x${string}`> = ['0x', '0x']
+let accounts: Array<`0x${string}`> = []
 let walletConnected = false
 
-const isEmptyAccount = (value: string) => !value || value === '0x'
+const isEmptyAccount = (value: string) => !value
 
 // Function to initialize provider and Web3 on the client side
 function initWidget() {
@@ -39,11 +39,11 @@ function initWidget() {
   // This is how a grid widget gets it's accounts and chainId.
   // Don't call eth_requestAccounts() directly to connect,
   // The connection will be injected by the grid parent page.
-  provider.on('accountsChanged', _accounts => {
+  provider.on('accountsChanged', (_accounts: `0x${string}`[]) => {
     accounts = _accounts
     checkWalletStatus()
   })
-  provider.on('chainChanged', _chainId => {
+  provider.on('chainChanged', (_chainId: any) => {
     chainId = _chainId
     checkWalletStatus()
   })

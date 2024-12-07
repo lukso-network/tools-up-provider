@@ -11,7 +11,7 @@
   const provider = createClientUPProvider();
   const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
 
-    const isEmptyAccount = (value: string) => !value || value === '0x'
+    const isEmptyAccount = (value: string) => !value
 
   function checkWalletStatus() {
     walletConnected = !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42;
@@ -74,7 +74,7 @@
 </script>
 
 <div class="donate-widget">
-  <h3>Donate LYX<br/>{ accounts[1] !== '0x' ? accounts[1] : 'not connected' }</h3>
+  <h3>Donate LYX<br/>{ !isEmptyAccount(accounts[1]) ? accounts[1] : 'not connected' }</h3>
   <div>
     <label for="amount">Enter Amount:</label>
     <input

@@ -5,7 +5,7 @@ import Web3, { type SupportedProviders, utils, type EthExecutionAPI } from 'web3
 import './Donate.scss'
 
 const chainId = ref<number | null>(null)
-const accounts = ref<string[]>(['0x', '0x'])
+const accounts = ref<string[]>(['0x0', '0x0'])
 const walletConnected = ref<boolean>(false)
 
 // Allocate the client up provider.
@@ -16,7 +16,7 @@ web3.eth
   ?.getChainId()
   .then(_chainId => {
     chainId.value = Number(_chainId)
-    walletConnected.value = accounts.value[0] !== '0x' && accounts.value[1] !== '0x' && chainId.value === 42
+    walletConnected.value = !isEmptyAccount(accounts.value[0]) && !isEmptyAccount(accounts.value[1]) && chainId.value === 42
   })
   .catch(error => {
     // Ignore error
@@ -40,12 +40,12 @@ provider.on('chainChanged', (_chainId: number) => {
   chainId.value = _chainId
 })
 
-const isEmptyAccount = (value: string) => !value || value === '0x'
+const isEmptyAccount = (value: string) => !value
 
 // Watch all changes and compose a walletConnected boolean flag.
-// Empty accounts (or disconnected) are represented by '0x' or undefined.
+// Empty accounts (or disconnected) are represented by '0x0*' or undefined.
 // Inside of the universaleverything.io grid, accounts[1] is always the page owner.
-// The accounts[0] is either '0x' or the connected user.
+// The accounts[0] is either '0x0*' or the connected user.
 watch(
   () => [chainId.value, accounts.value] as [number, Array<`0x${string}`>],
   ([chainId, accounts]: [number, Array<`0x${string}`>]) => {
@@ -92,7 +92,7 @@ async function donate() {
 
 <template>
   <div class="donate-widget">
-    <h3>Donate LYX to<br />{{ accounts[1] !== '0x' ? accounts[1] : 'not connected' }}</h3>
+    <h3>Donate LYX to<br />{{ !isEmptyAccount(accounts[1]) ? accounts[1] : 'not connected' }}</h3>
     <div>
       <label for="amount">Enter Amount:</label>
       <input id="amount" type="number" v-model.number="amount" :min="minAmount" :max="maxAmount" step="1" @input="validateAmount" />
