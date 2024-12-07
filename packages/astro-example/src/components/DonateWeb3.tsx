@@ -10,18 +10,42 @@ const dataType: DataFormat = {
   bytes: FMT_BYTES.HEX,
 }
 
+const minAmount = 0.25
+const maxAmount = 1000
+
+const isEmptyAccount = (value: string) => !value
+
 const DonateWidget = () => {
   const [chainId, setChainId] = useState<number>(0)
   const [accounts, setAccounts] = useState<Array<`0x${string}`>>([])
   const [walletConnected, setWalletConnected] = useState(false)
-  const [amount, setAmount] = useState<number>(0.01)
-  const presetAmounts = [0.01, 0.05, 0.1]
+  const [amount, setAmount] = useState<number>(minAmount)
+  const [error, setError] = useState('')
+
+  const validateAmount = useCallback((value: number) => {
+    if (value < minAmount) {
+      setError(`Amount must be at least ${minAmount} LYX.`)
+    } else if (value > maxAmount) {
+      setError(`Amount cannot exceed ${maxAmount} LYX.`)
+    } else {
+      setError('')
+    }
+    setAmount(value)
+  }, [])
+
+  useEffect(() => {
+    validateAmount(amount)
+  }, [amount, validateAmount])
 
   const updateConnected = useCallback((accounts: Array<`0x${string}`>, chainId: number) => {
     console.log(accounts, chainId)
-    setWalletConnected(accounts.length > 0 && accounts[0] !== '0x' && chainId === 42)
+    setWalletConnected(accounts.length > 0 && !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42)
   }, [])
 
+  // Monitor accountsChanged and chainChained events
+  // This is how a grid widget gets it's accounts and chainId.
+  // Don't call eth_requestAccounts() directly to connect,
+  // The connection will be injected by the grid parent page.
   useEffect(() => {
     async function init() {
       try {
@@ -60,26 +84,40 @@ const DonateWidget = () => {
 
   const donate = async () => {
     if (walletConnected && amount) {
-      await web3.eth.sendTransaction({
-        from: accounts[0],
-        to: accounts[1],
-        value: Web3.utils.toWei(amount.toString(), 'ether'),
-      })
+      await web3.eth.sendTransaction(
+        {
+          from: accounts[0],
+          to: accounts[1],
+          value: Web3.utils.toWei(amount.toString(), 'ether'),
+        },
+        undefined,
+        { checkRevertBeforeSending: false }
+      )
     }
   }
 
   return (
     <div className="donate-widget">
-      <h3>Donate LYX</h3>
+      <h3>
+        Donate LYX
+        <br />
+        {!isEmptyAccount(accounts[1]) ? accounts[1] : 'not connected'}
+      </h3>
       <div>
-        <label htmlFor="selectId">Select Amount:</label>
-        <select id="selectId" value={amount} onChange={e => setAmount(Number(e.target.value))}>
-          {presetAmounts.map(amt => (
-            <option key={amt} value={amt}>
-              {amt} LYX
-            </option>
-          ))}
-        </select>
+        <label htmlFor="amount">Enter Amount:</label>
+        <input
+          id="amount"
+          type="number"
+          value={amount}
+          onChange={e => {
+            const value = Number.parseFloat(e.target.value)
+            validateAmount(value)
+          }}
+          min={minAmount}
+          max={maxAmount}
+          step="1"
+        />
+        {error && <p style={{ color: 'red' }}>{error}</p>}
       </div>
       <button type="button" onClick={donate} disabled={!walletConnected || !amount}>
         Donate {amount} LYX

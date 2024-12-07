@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import image from './UniversalProfiles_Apps_Logo_96px.svg'
 import { create } from 'domain'
 import { createWalletPopup } from './popup'
+import { cleanupAccounts } from './index'
 
 const clientLog = debug('upProvider:client')
 
@@ -370,7 +371,11 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                 return
               case 'accountsChanged':
                 accounts = response.params
-                up.emit('accountsChanged', accounts)
+                up.emit(
+                  'accountsChanged',
+                  // Cleanup wrong null or undefined.
+                  cleanupAccounts(accounts)
+                )
                 return
               case 'rpcUrlsChanged':
                 rpcUrls = response.params
@@ -453,7 +458,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   const wrapper = async (method: string, params?: unknown[]) => {
     switch (method) {
       case 'eth_call':
-        if (rpcUrls.length > 0) {
+        if (rpcUrls.length > 0 && Object.keys((params?.[0] ?? {}) as Record<string, unknown>).every(key => !/^gasPrice|maxFeePerGas|maxPriorityFeePerGas|value$/.test(key))) {
           clientLog('client direct rpc', rpcUrls, method, params)
 
           const urls = [...rpcUrls]

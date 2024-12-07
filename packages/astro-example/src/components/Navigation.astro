@@ -1,46 +1,55 @@
 ---
 const currentPath = Astro.url.pathname;
+const size = 10;
 ---
-<div class="nav">
-  <a href="/" class={`button-link ${currentPath === '/' ? 'disabled' : ''}`}>Vue Web3</a>
-  <a href="/react-web3" class={`button-link ${currentPath === '/react-web3' ? 'disabled' : ''}`}>React Web3</a>
-  <a href="/react-viem" class={`button-link ${currentPath === '/react-viem' ? 'disabled' : ''}`}>React Viem</a>
-  <a href="/lit-viem" class={`button-link ${currentPath === '/lit-viem' ? 'disabled' : ''}`}>Lit Viem</a>
-  <a href="/vue-ethers" class={`button-link ${currentPath === '/vue-ethers' ? 'disabled' : ''}`}>Vue Ethers</a>
-  <a href="/svelte-web3" class={`button-link ${currentPath === '/svelte-web3' ? 'disabled' : ''}`}>Svelte Web3</a>
-  <a href="/astro-web3" class={`button-link ${currentPath === '/astro-web3' ? 'disabled' : ''}`}>Astro Web3</a>
+<div class="nav">&nbsp;❀
+  <a title="Vue with Web3.js" href="/" class={`button-link ${currentPath === '/' ? 'disabled' : ''}`}><img src="/images/vuejs.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
+  <a title="React with Web3.js" href="/react-web3" class={`button-link ${currentPath === '/react-web3' ? 'disabled' : ''}`}><img src="/images/react.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
+  <a title="React with Viem" href="/react-viem" class={`button-link ${currentPath === '/react-viem' ? 'disabled' : ''}`}><img src="/images/react.svg" width={size} height={size} /> <img src="/images/viem.png" width="15" height="15" /></a>
+  <a title="LIT with Viem" href="/lit-viem" class={`button-link ${currentPath === '/lit-viem' ? 'disabled' : ''}`}><img src="/images/lit.svg" color="white" width={size} height={size} /> <img src="/images/viem.png" width="15" height="15" /></a>
+  <a title="Vue with ethers.js" href="/vue-ethers" class={`button-link ${currentPath === '/vue-ethers' ? 'disabled' : ''}`}><img src="/images/vuejs.svg" color="white" width={size} height={size} /> <img src="/images/ethersjs.svg" width="15" height="15" /></a>
+  <a title="Svelte with web3.js" href="/svelte-web3" class={`button-link ${currentPath === '/svelte-web3' ? 'disabled' : ''}`}><img src="/images/svelte.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
+  <a title="Astro with web3.js" href="/astro-web3" class={`button-link ${currentPath === '/astro-web3' ? 'disabled' : ''}`}><img src="/images/astro.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
 </div>
 <style>
 .nav {
-  padding-top: 100px;
-  display: flex;
   justify-content: center;
-  gap: 10px;
-  margin: 20px;
+  z-index: 1000;
+  margin-bottom: -1em;
+  color: #333;
+  font-size: 20px;
+
+  & a {
+    display: none;
+  }
+  &:hover a {
+    display: inline-block;
+  }
 }
 a.button-link {
   display: inline-block;
-  padding: 2px 10px; /* Add padding for button size */
+  padding: 2px 2px; /* Add padding for button size */
   border-radius: 5px; /* Rounded corners */
-  background-color: #4caf50; /* Button color */
+  background-color: #ccc; /* Button color */
   color: white; /* Text color */
   text-decoration: none; /* Remove underline */
   font-weight: bold; /* Bold text for emphasis */
-  font-size: 15px;
+  font-size: 10px;
   text-align: center; /* Center the text */
   transition: background-color 0.3s ease; /* Smooth hover effect */
+  border: 1px solid #111
 }
 
 a.button-link:hover {
-  background-color: #45a049; /* Darker color on hover */
+  background-color: #bbb; /* Darker color on hover */
 }
 
 a.button-link:active {
-  background-color: #3e8e41; /* Even darker color on click */
+  background-color: #aaa; /* Even darker color on click */
 }
 
 a.button-link.disabled {
-  background-color: #ccc;
+  background-color: #999;
   color: #666;
   pointer-events: none; /* Prevents clicking */
   cursor: default;

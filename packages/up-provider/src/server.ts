@@ -2,6 +2,7 @@ import debug from 'debug'
 import EventEmitter3, { type EventEmitter } from 'eventemitter3'
 import { type JSONRPCErrorResponse, type JSONRPCParams, JSONRPCServer, type JSONRPCSuccessResponse } from 'json-rpc-2.0'
 import { v4 as uuidv4 } from 'uuid'
+import { cleanupAccounts, EMPTY_ACCOUNT } from '.'
 
 const serverLog = debug('upProvider:server')
 interface UPClientChannelEvents {
@@ -135,12 +136,12 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
     const pageChanged = this.#accounts.slice(1).some((value, index) => value !== page[index])
     this.#setter(enabled)
     if (primaryChanged || pageChanged) {
-      this.#accounts[0] = primary || '0x'
+      this.#accounts[0] = primary
       this.#accounts.length = 1 + (page.length || 0)
       for (let i = 0; i < (page?.length || 0); i++) {
         this.#accounts[i + 1] = page[i]
       }
-      await this.send('accountsChanged', [this.#getter() ? primary : '0x', ...this.#accounts.slice(1)])
+      await this.send('accountsChanged', cleanupAccounts([this.#getter() ? primary : undefined, ...this.#accounts.slice(1)]))
       if (primaryChanged) {
         this.emit(this.#getter() && this.#accounts[0] ? 'connected' : 'disconnected')
       }
@@ -158,7 +159,7 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   public set enabled(value: boolean) {
     if (value !== this.enabled) {
       this.#setter(value)
-      this.send('accountsChanged', [this.#getter() ? this.accounts[0] : '0x', ...this.accounts.slice(1)])
+      this.send('accountsChanged', cleanupAccounts([this.#getter() ? this.accounts[0] : undefined, ...this.accounts.slice(1)]))
       this.emit(this.#getter() && this.accounts[0] ? 'connected' : 'disconnected')
     }
   }
@@ -318,7 +319,7 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> {
   }
 
   get accounts(): `0x${string}`[] {
-    return [this.#options.primary || '0x', ...this.#options.accounts.slice(1)]
+    return cleanupAccounts([this.#options.primary, ...this.#options.accounts.slice(1)])
   }
 
   /**
@@ -360,9 +361,9 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> {
   async injectAddresses(...page: `0x${string}`[]) {
     const changed = this.#options.accounts.slice(1).some((value, index) => page?.[index] !== value)
     if (changed) {
-      this.#options.accounts = [this.#options.primary || '0x', ...page]
+      this.#options.accounts = [this.#options.primary, ...page]
       for (const item of this.channels.values()) {
-        await item.allowAccounts(item.enabled, [this.#options.primary, ...this.#options.accounts.slice(1)], this.#options.chainId)
+        await item.allowAccounts(item.enabled, cleanupAccounts([this.#options.primary, ...this.#options.accounts.slice(1)]), this.#options.chainId)
       }
     }
   }
@@ -461,9 +462,9 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
   const options: UPProviderConnectorOptions = {
     provider: provider ?? null,
     rpcUrls: Array.isArray(rpcUrls) ? rpcUrls : rpcUrls != null ? [rpcUrls] : [],
-    primary: '0x',
+    primary: EMPTY_ACCOUNT,
     chainId: 0,
-    accounts: [],
+    accounts: [EMPTY_ACCOUNT],
     promise: Promise.resolve(),
   }
   globalUPProvider = new _UPProviderConnector(channels, options)
@@ -536,31 +537,37 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
               ...request,
               result: [options.chainId],
             } as JSONRPCSuccessResponse
-          case 'accounts':
-            serverLog('short circuit response', request, [options.primary || '0x', ...channel_.accounts.slice(1)])
-            channel_.emit('requestAccounts', [enabled ? options.primary || '0x' : '0x', ...channel_.accounts.slice(1)])
+          case 'accounts': {
+            const accounts = cleanupAccounts([enabled ? options.primary : EMPTY_ACCOUNT, ...channel_.accounts.slice(1)])
+            serverLog('short circuit response', request)
+            channel_.emit('requestAccounts', accounts)
             return {
               ...request,
-              result: [enabled ? options.primary || '0x' : '0x', ...channel_.accounts.slice(1)],
+              result: accounts,
             } as JSONRPCSuccessResponse
-          case 'eth_requestAccounts':
-            serverLog('short circuit response', request, [options.primary, ...channel_.accounts.slice(1)])
-            channel_.emit('requestAccounts', [enabled ? options.primary || '0x' : '0x', ...channel_.accounts.slice(1)])
+          }
+          case 'eth_requestAccounts': {
+            const accounts = cleanupAccounts([enabled ? options.primary : undefined, ...channel_.accounts.slice(1)])
+            serverLog('short circuit response', request, accounts)
+            channel_.emit('requestAccounts', accounts)
             return {
               ...request,
-              result: [enabled ? options.primary || '0x' : '0x', ...channel_.accounts.slice(1)],
+              result: accounts,
             } as JSONRPCSuccessResponse
+          }
           case 'eth_chainId':
             return {
               ...request,
               result: options.chainId,
             } as JSONRPCSuccessResponse
-          case 'eth_accounts':
-            channel_.emit('accountsChanged', [enabled ? options.primary || '0x' : '0x', ...channel_.accounts.slice(1)])
+          case 'eth_accounts': {
+            const accounts = cleanupAccounts([enabled ? options.primary : undefined, ...channel_.accounts.slice(1)])
+            channel_.emit('accountsChanged', accounts)
             return {
               ...request,
-              result: [enabled ? options.primary || '0x' : '0x', ...channel_.accounts.slice(1)],
+              result: accounts,
             } as JSONRPCSuccessResponse
+          }
         }
         try {
           if (!options.provider) {
