@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import image from './UniversalProfiles_Apps_Logo_96px.svg'
 import { create } from 'domain'
 import { createWalletPopup } from './popup'
-import { cleanupAccounts } from './index'
+import { cleanupAccounts, isEmptyAccount } from './index'
 
 const clientLog = debug('upProvider:client')
 
@@ -31,6 +31,7 @@ interface UPClientProviderEvents {
   connected: () => void
   disconnected: () => void
   accountsChanged: (accounts: `0x${string}`[]) => void
+  contextChanged: (contextAccounts: `0x${string}`[]) => void
   requestAccounts: (accounts: `0x${string}`[]) => void
   chainChanged: (chainId: number) => void
   injected: (page: `0x${string}`) => void
@@ -42,6 +43,7 @@ type UPClientProviderOptions = {
   client?: JSONRPCClient
   chainId: () => number
   accounts: () => `0x${string}`[]
+  contextAccounts: () => `0x${string}`[]
   window?: Window
   clientChannel?: MessagePort
   startupPromise: Promise<void>
@@ -120,7 +122,11 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
   }
 
   get isConnected(): boolean {
-    return !!(this.#options.accounts() || [])[0]
+    return (this.#options.accounts() || []).every(account => !isEmptyAccount(account))
+  }
+
+  get isMiniApp(): Promise<boolean> {
+    return this.#options?.startupPromise.catch(() => false).then(() => true)
   }
 
   async request(method: { method: string; params?: JSONRPCParams }, clientParams?: any): Promise<any>
@@ -132,6 +138,9 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
     const method = typeof _method === 'string' ? _method : _method.method
     const params = typeof _method === 'string' ? _params : _method.params
     const clientParams = typeof _method === 'string' ? _clientParams : _params
+    if (method === 'up_contextAccounts') {
+      return this.#options.contextAccounts()
+    }
     return this.#options?.client?.request(method, params, clientParams) || null
   }
 
@@ -141,6 +150,10 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
 
   get accounts() {
     return this.#options?.accounts() || []
+  }
+
+  get contextAccounts() {
+    return this.#options?.contextAccounts() || []
   }
 }
 
@@ -304,6 +317,7 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
 function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClientProvider {
   let chainId = 0
   let accounts: `0x${string}`[] = []
+  let contextAccounts: `0x${string}`[] = []
   let rpcUrls: string[] = []
   let startupResolve: () => void
 
@@ -314,6 +328,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   const options: UPClientProviderOptions = {
     chainId: () => chainId,
     accounts: () => accounts,
+    contextAccounts: () => contextAccounts,
     startupPromise,
   }
 
@@ -368,6 +383,14 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
               case 'chainChanged':
                 chainId = response.params[0]
                 up.emit('chainChanged', chainId)
+                return
+              case 'contextChanged':
+                contextAccounts = response.params
+                up.emit(
+                  'contextChanged',
+                  // Cleanup wrong null or undefined.
+                  cleanupAccounts(contextAccounts)
+                )
                 return
               case 'accountsChanged':
                 accounts = response.params
