@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.7...up-provider-v0.2.0) (2024-12-10)
+
+
+### Features
+
+* Add new api to keep addresses and connected addresses separate ([f788de3](https://github.com/lukso-network/tools-up-provider/commit/f788de3a9c5393ee489e583a49caa12f9b07e747))
+
+
+### Bug Fixes
+
+* Refactor to new names ([51d0f79](https://github.com/lukso-network/tools-up-provider/commit/51d0f79ff3205be6a1633f830d7154a0666f9697))
+
 ## [0.1.7](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.6...up-provider-v0.1.7) (2024-12-10)
 
 
