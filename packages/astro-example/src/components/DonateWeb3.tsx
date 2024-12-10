@@ -1,4 +1,4 @@
-import { createClientUPProvider } from '@lukso/up-provider'
+import { createClientUPProvider, isEmptyAccount } from '@lukso/up-provider'
 import { useCallback, useEffect, useState } from 'react'
 import Web3, { type EthExecutionAPI, type SupportedProviders, type DataFormat, FMT_NUMBER, FMT_BYTES } from 'web3'
 import './Donate.scss'
@@ -12,8 +12,6 @@ const dataType: DataFormat = {
 
 const minAmount = 0.25
 const maxAmount = 1000
-
-const isEmptyAccount = (value: string) => !value
 
 const DonateWidget = () => {
   const [chainId, setChainId] = useState<number>(0)

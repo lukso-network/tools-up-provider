@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { createClientUPProvider } from '@lukso/up-provider'
+import { createClientUPProvider, isEmptyAccount } from '@lukso/up-provider'
 import { ref, watch } from 'vue'
 import Web3, { type SupportedProviders, utils, type EthExecutionAPI } from 'web3'
 import './Donate.scss'
@@ -39,8 +39,6 @@ provider.on('accountsChanged', (_accounts: `0x${string}`[]) => {
 provider.on('chainChanged', (_chainId: number) => {
   chainId.value = _chainId
 })
-
-const isEmptyAccount = (value: string) => !value
 
 // Watch all changes and compose a walletConnected boolean flag.
 // Empty accounts (or disconnected) are represented by '0x0*' or undefined.

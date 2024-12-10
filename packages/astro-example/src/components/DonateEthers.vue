@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { createClientUPProvider } from '@lukso/up-provider'
+import { createClientUPProvider, isEmptyAccount } from '@lukso/up-provider'
 import { type Eip1193Provider, ethers } from 'ethers'
 import { ref, watch } from 'vue'
 import './Donate.scss'
-
-const isEmptyAccount = (value: string) => !value || /0x0*$/.test(value)
 
 const chainId = ref<number | null>(null)
 const accounts = ref<string[]>([])

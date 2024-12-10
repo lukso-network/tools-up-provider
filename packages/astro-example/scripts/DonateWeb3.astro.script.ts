@@ -1,12 +1,10 @@
-import { createClientUPProvider } from '@lukso/up-provider'
+import { createClientUPProvider, isEmptyAccount } from '@lukso/up-provider'
 import Web3, { type EthExecutionAPI, type SupportedProviders } from 'web3'
 
 let amount = 0.01
 let chainId = 0
 let accounts: Array<`0x${string}`> = []
 let walletConnected = false
-
-const isEmptyAccount = (value: string) => !value
 
 // Function to initialize provider and Web3 on the client side
 function initWidget() {

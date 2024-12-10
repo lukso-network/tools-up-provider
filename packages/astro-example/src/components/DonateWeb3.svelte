@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createClientUPProvider } from '@lukso/up-provider';
+  import { createClientUPProvider, isEmptyAccount } from '@lukso/up-provider';
   import { onMount } from "svelte";
   import Web3,{ type SupportedProviders, type EthExecutionAPI } from 'web3';
 
@@ -10,8 +10,6 @@
 
   const provider = createClientUPProvider();
   const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
-
-    const isEmptyAccount = (value: string) => !value
 
   function checkWalletStatus() {
     walletConnected = !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42;

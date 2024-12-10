@@ -1,4 +1,4 @@
-import { createClientUPProvider } from '@lukso/up-provider'
+import { createClientUPProvider, isEmptyAccount } from '@lukso/up-provider'
 import { useCallback, useEffect, useState } from 'react'
 import { createWalletClient, custom, parseUnits } from 'viem'
 import { lukso } from 'viem/chains'
@@ -16,8 +16,6 @@ const client = createWalletClient({
 
 const minAmount = 0.25
 const maxAmount = 1000
-
-const isEmptyAccount = (value: string) => !value
 
 const DonateWidget = () => {
   const [chainId, setChainId] = useState<number>(0)
