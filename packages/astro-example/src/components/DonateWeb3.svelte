@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { createClientUPProvider, isEmptyAccount } from '@lukso/up-provider';
+  import { createClientUPProvider } from '@lukso/up-provider';
   import { onMount } from "svelte";
   import Web3,{ type SupportedProviders, type EthExecutionAPI } from 'web3';
 
   let chainId: number | null = null;
   let accounts: string[] = [];
+  let contextAccounts: string[] = [];
   let walletConnected = false;
   const presetAmounts = [0.01, 0.05, 0.1];
 
@@ -12,7 +13,7 @@
   const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
 
   function checkWalletStatus() {
-    walletConnected = !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42;
+    walletConnected = accounts.length > 0 && contextAccounts.length > 0 && chainId === 42;
   }
 
   let error = ''; // Error message for validation feedback
@@ -49,10 +50,19 @@
       })
       .catch(error => { /* Ignore error */ });
 
+    contextAccounts = provider.contextAccounts;
+    checkWalletStatus();
+
     provider.on('accountsChanged', (_accounts) => {
-      accounts = _accounts;
+      accounts = [..._accounts];
       checkWalletStatus();
     });
+
+    provider.on('contextAccountsChanged', (_accounts) => {
+      contextAccounts = [..._accounts];
+      checkWalletStatus();
+    });
+
 
     provider.on('chainChanged', (_chainId) => {
       chainId = _chainId;
@@ -72,7 +82,7 @@
 </script>
 
 <div class="donate-widget">
-  <h3>Donate LYX<br/>{ !isEmptyAccount(accounts[1]) ? accounts[1] : 'not connected' }</h3>
+  <h3>Donate LYX<br/>{ contextAccounts.length > 0 ? contextAccounts[0] : 'not connected' }</h3>
   <div>
     <label for="amount">Enter Amount:</label>
     <input

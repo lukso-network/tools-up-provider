@@ -1,4 +1,4 @@
-import { createClientUPProvider, isEmptyAccount } from '@lukso/up-provider'
+import { createClientUPProvider } from '@lukso/up-provider'
 import { useCallback, useEffect, useState } from 'react'
 import Web3, { type EthExecutionAPI, type SupportedProviders, type DataFormat, FMT_NUMBER, FMT_BYTES } from 'web3'
 import './Donate.scss'
@@ -16,6 +16,7 @@ const maxAmount = 1000
 const DonateWidget = () => {
   const [chainId, setChainId] = useState<number>(0)
   const [accounts, setAccounts] = useState<Array<`0x${string}`>>([])
+  const [contextAccounts, setContextAccounts] = useState<Array<`0x${string}`>>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [amount, setAmount] = useState<number>(minAmount)
   const [error, setError] = useState('')
@@ -35,9 +36,9 @@ const DonateWidget = () => {
     validateAmount(amount)
   }, [amount, validateAmount])
 
-  const updateConnected = useCallback((accounts: Array<`0x${string}`>, chainId: number) => {
+  const updateConnected = useCallback((accounts: Array<`0x${string}`>, contextAccounts: Array<`0x${string}`>, chainId: number) => {
     console.log(accounts, chainId)
-    setWalletConnected(accounts.length > 0 && !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42)
+    setWalletConnected(accounts.length > 0 && contextAccounts.length > 0 && chainId === 42)
   }, [])
 
   // Monitor accountsChanged and chainChained events
@@ -53,7 +54,9 @@ const DonateWidget = () => {
         const _accounts = (await web3.eth.getAccounts()) as Array<`0x${string}`>
         setAccounts(_accounts)
 
-        updateConnected(_accounts, _chainId)
+        const _contextAccounts = provider.contextAccounts
+
+        updateConnected(_accounts, _contextAccounts, _chainId)
       } catch (error) {
         // Ignore error
       }
@@ -63,29 +66,36 @@ const DonateWidget = () => {
 
     const accountsChanged = (_accounts: Array<`0x${string}`>) => {
       setAccounts(_accounts)
-      updateConnected(_accounts, chainId)
+      updateConnected(_accounts, contextAccounts, chainId)
+    }
+
+    const contextAccountsChanged = (_accounts: Array<`0x${string}`>) => {
+      setContextAccounts(_accounts)
+      updateConnected(accounts, _accounts, chainId)
     }
 
     const chainChanged = (_chainId: number) => {
       setChainId(_chainId)
-      updateConnected(accounts, _chainId)
+      updateConnected(accounts, contextAccounts, _chainId)
     }
 
     provider.on('accountsChanged', accountsChanged)
     provider.on('chainChanged', chainChanged)
+    provider.on('contextAccountsChanged', contextAccountsChanged)
 
     return () => {
       provider.removeListener('accountsChanged', accountsChanged)
+      provider.removeListener('contextAccountsChanged', contextAccountsChanged)
       provider.removeListener('chainChanged', chainChanged)
     }
-  }, [chainId, accounts[0], accounts[1], updateConnected])
+  }, [chainId, accounts[0], contextAccounts[0], updateConnected])
 
   const donate = async () => {
     if (walletConnected && amount) {
       await web3.eth.sendTransaction(
         {
           from: accounts[0],
-          to: accounts[1],
+          to: contextAccounts[0],
           value: Web3.utils.toWei(amount.toString(), 'ether'),
         },
         undefined,
@@ -99,7 +109,7 @@ const DonateWidget = () => {
       <h3>
         Donate LYX
         <br />
-        {!isEmptyAccount(accounts[1]) ? accounts[1] : 'not connected'}
+        <small>{contextAccounts.length > 0 ? contextAccounts[0] : 'not connected'}</small>
       </h3>
       <div>
         <label htmlFor="amount">Enter Amount:</label>

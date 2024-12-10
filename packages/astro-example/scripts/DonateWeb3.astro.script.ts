@@ -1,9 +1,10 @@
-import { createClientUPProvider, isEmptyAccount } from '@lukso/up-provider'
+import { createClientUPProvider } from '@lukso/up-provider'
 import Web3, { type EthExecutionAPI, type SupportedProviders } from 'web3'
 
 let amount = 0.01
 let chainId = 0
 let accounts: Array<`0x${string}`> = []
+let contextAccounts: Array<`0x${string}`> = []
 let walletConnected = false
 
 // Function to initialize provider and Web3 on the client side
@@ -13,12 +14,12 @@ function initWidget() {
 
   // Update wallet connection status
   function checkWalletStatus() {
-    walletConnected = accounts.length > 1 && !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42
+    walletConnected = accounts.length > 0 && contextAccounts.length > 0 && chainId === 42
     const button: HTMLButtonElement = document.getElementById('donateButton') as HTMLButtonElement
     button.disabled = !walletConnected
     const accountNumber = document.getElementById('accountNumber')
     if (accountNumber) {
-      accountNumber.innerText = walletConnected ? accounts[0] : 'Not connected'
+      accountNumber.innerText = contextAccounts.length > 0 ? contextAccounts[0] : 'Not connected'
     }
   }
 
@@ -41,6 +42,10 @@ function initWidget() {
     accounts = _accounts
     checkWalletStatus()
   })
+  provider.on('contextAccountsChanged', (_accounts: `0x${string}`[]) => {
+    contextAccounts = _accounts
+    checkWalletStatus()
+  })
   provider.on('chainChanged', (_chainId: any) => {
     chainId = _chainId
     checkWalletStatus()
@@ -54,7 +59,7 @@ function initWidget() {
       await web3.eth.sendTransaction(
         {
           from: accounts[0],
-          to: accounts[1],
+          to: contextAccounts[0],
           value: web3.utils.toWei(amount.toString(), 'ether'),
         },
         undefined,

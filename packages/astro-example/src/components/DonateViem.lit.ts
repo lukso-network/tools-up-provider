@@ -77,31 +77,28 @@ class DonateWidget extends LitElement {
     }
   `
 
-  @property({ type: Number }) chainId = 0
-  @property({ type: Array<`0x${string}`> }) accounts: Array<`0x${string}`> = []
-  @property({ type: Boolean }) walletConnected = false
   @property({ type: Number }) minAmount = 0.25
   @property({ type: Number }) maxAmount = 1000
   @property({ type: Number }) defaultAmount = this.minAmount
+  @state() chainId = 0
+  @state() accounts: Array<`0x${string}`> = []
+  @state() contextAccounts: Array<`0x${string}`> = []
+  @state() walletConnected = false
   @state() error = '' // Error message for validation feedback
   @state() amount = this.defaultAmount
   @state() presetAmounts = [0.01, 0.05, 0.1]
   @state() disabled = true
 
-  isEmptyAccount(value: string) {
-    return !value || /0x0*$/.test(value)
-  }
-
   // Watch for changes in propA and propB
   updated(changedProperties: Map<PropertyKey, unknown>) {
-    if (changedProperties.has('amount') || changedProperties.has('accounts') || changedProperties.has('chainId')) {
+    if (changedProperties.has('walletConnected') || changedProperties.has('amount') || changedProperties.has('accounts') || changedProperties.has('contextAccounts') || changedProperties.has('chainId')) {
       this.calculateEnabled()
     }
   }
 
   calculateEnabled() {
-    this.disabled = !this.amount || this.isEmptyAccount(this.accounts[0]) || this.isEmptyAccount(this.accounts[1]) || this.accounts[0] === this.accounts[1] || this.chainId !== 42
-    console.log({ amount: this.amount, accounts: this.accounts, chainId: this.chainChanged, disabled: this.disabled })
+    this.disabled = !this.amount || this.accounts.length === 0 || this.contextAccounts.length === 0 || this.chainId !== 42
+    console.log({ amount: this.amount, accounts: this.accounts, contextAccounts: this.contextAccounts, chainId: this.chainChanged, disabled: this.disabled })
   }
 
   validateAmount() {
@@ -126,25 +123,37 @@ class DonateWidget extends LitElement {
 
   async init() {
     try {
-      this.chainId = Number(await client.getChainId())
-      this.accounts = (await client.getAddresses()) as Array<`0x${string}`>
-      this.walletConnected = this.accounts.length > 0 && !this.isEmptyAccount(this.accounts[0]) && !this.isEmptyAccount(this.accounts[1]) && this.chainId === 42
+      client.getChainId().then(chainId => {
+        this.chainId = chainId
+      })
+      client.getAddresses().then(addresses => {
+        this.accounts = addresses
+      })
+      this.contextAccounts = provider.contextAccounts
+      this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && this.chainId === 42
     } catch (error) {
+      console.error(error)
       // Ignore error
     }
 
     provider.on('accountsChanged', this.accountsChanged.bind(this))
     provider.on('chainChanged', this.chainChanged.bind(this))
+    provider.on('contextAccountsChanged', this.contextAccountsChanged.bind(this))
   }
 
   accountsChanged(_accounts: Array<`0x${string}`>) {
-    this.accounts = _accounts
-    this.walletConnected = this.accounts.length > 0 && this.chainId === 42
+    this.accounts = [..._accounts]
+    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && this.chainId === 42
   }
 
   chainChanged(_chainId: number) {
     this.chainId = _chainId
-    this.walletConnected = this.accounts.length > 0 && this.chainId === 42
+    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && this.chainId === 42
+  }
+
+  contextAccountsChanged(_accounts: Array<`0x${string}`>) {
+    this.contextAccounts = [..._accounts]
+    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && this.chainId === 42
   }
 
   async donate() {
@@ -161,7 +170,7 @@ class DonateWidget extends LitElement {
     return html`
       <div class="widget">
         <div class="donate-widget">
-          <h3>Donate LYX LIT<br />${!this.isEmptyAccount(this.accounts[1]) ? this.accounts[1] : 'not connected'}</h3>
+          <h3>Donate LYX LIT<br /><small>${this.contextAccounts.length > 0 ? this.contextAccounts[0] : 'not connected'}</small></h3>
           <div>
             <label for="amount">Enter Amount:</label>
             <input id="amount" type="number" .value="${this.amount}" @input="${this.handleInput}" min="${this.minAmount}" max="${this.maxAmount}" step="1" />
