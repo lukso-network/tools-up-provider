@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.6...up-provider-v0.1.7) (2024-12-10)
+
+
+### Bug Fixes
+
+* Refactor so all components use the same isEmptyAccount ([932304e](https://github.com/lukso-network/tools-up-provider/commit/932304e288e4e7186561928518a4c720f0e9949a))
+
 ## [0.1.6](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.5...up-provider-v0.1.6) (2024-12-07)
 
 
