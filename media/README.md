@@ -58,62 +58,92 @@ useful to send funds yto yourself.
 Most of the time the condition for "it's ok to send transactions would be"
 
 ```js
-import { isEmptyAccount } from "@lukso/up-provider";
-const accountConnected = !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[0]) && chainId === 42;
+const accountConnected = accounts.length > 0 && contextAccounts.length > 0 && chainId === 42;
 ```
 
 You should use some kind of watch/useEffect or other reactive function to watch the
 .on('accountsChanged') and .on('chainChanged') events. You can initially call eth_accounts and eth_chainId to initialize accounts and chainId.
 
-### Example React code to monitor accountsChanged and chainChained
+### Example React code to monitor accountsChanged, contextAccountsChanged and chainChained
 
 The output is a boolean walletConnected which will be true/false.
 
 ```tsx
 const [chainId, setChainId] = useState<number>(0)
-  const [accounts, setAccounts] = useState<Array<`0x${string}`>>([])
-  const [walletConnected, setWalletConnected] = useState(false)
+const [accounts, setAccounts] = useState<Array<`0x${string}`>>([])
+const [contextAccounts, setContextAccounts] = useState<Array<`0x${string}`>>([])
+const [walletConnected, setWalletConnected] = useState(false)
+const [amount, setAmount] = useState<number>(minAmount)
+const [error, setError] = useState('')
 
-  const updateConnected = useCallback((accounts: Array<`0x${string}`>, chainId: number) => {
-    console.log(accounts, chainId)
-    setWalletConnected(accounts.length > 0 && !isEmptyAccount(accounts[0]) && !isEmptyAccount(accounts[1]) && chainId === 42)
-  }, [])
+const validateAmount = useCallback((value: number) => {
+  if (value < minAmount) {
+    setError(`Amount must be at least ${minAmount} LYX.`)
+  } else if (value > maxAmount) {
+    setError(`Amount cannot exceed ${maxAmount} LYX.`)
+  } else {
+    setError('')
+  }
+  setAmount(value)
+}, [])
 
-  useEffect(() => {
-    async function init() {
-      try {
-        const _chainId: number = (await web3.eth.getChainId(dataType)) as number
-        setChainId(_chainId)
+useEffect(() => {
+  validateAmount(amount)
+}, [amount, validateAmount])
 
-        const _accounts = (await web3.eth.getAccounts()) as Array<`0x${string}`>
-        setAccounts(_accounts)
+const updateConnected = useCallback((accounts: Array<`0x${string}`>, contextAccounts: Array<`0x${string}`>, chainId: number) => {
+  console.log(accounts, chainId)
+  setWalletConnected(accounts.length > 0 && contextAccounts.length > 0 && chainId === 42)
+}, [])
 
-        updateConnected(_accounts, _chainId)
-      } catch (error) {
-        // Ignore error
-      }
-    }
-
-    init()
-
-    const accountsChanged = (_accounts: Array<`0x${string}`>) => {
-      setAccounts(_accounts)
-      updateConnected(_accounts, chainId)
-    }
-
-    const chainChanged = (_chainId: number) => {
+// Monitor accountsChanged and chainChained events
+// This is how a grid widget gets it's accounts and chainId.
+// Don't call eth_requestAccounts() directly to connect,
+// The connection will be injected by the grid parent page.
+useEffect(() => {
+  async function init() {
+    try {
+      const _chainId: number = (await web3.eth.getChainId(dataType)) as number
       setChainId(_chainId)
-      updateConnected(accounts, _chainId)
-    }
 
-    provider.on('accountsChanged', accountsChanged)
-    provider.on('chainChanged', chainChanged)
+      const _accounts = (await web3.eth.getAccounts()) as Array<`0x${string}`>
+      setAccounts(_accounts)
 
-    return () => {
-      provider.removeListener('accountsChanged', accountsChanged)
-      provider.removeListener('chainChanged', chainChanged)
+      const _contextAccounts = provider.contextAccounts
+
+      updateConnected(_accounts, _contextAccounts, _chainId)
+    } catch (error) {
+      // Ignore error
     }
-  }, [chainId, accounts[0], accounts[1], updateConnected])
+  }
+
+  init()
+
+  const accountsChanged = (_accounts: Array<`0x${string}`>) => {
+    setAccounts(_accounts)
+    updateConnected(_accounts, contextAccounts, chainId)
+  }
+
+  const contextAccountsChanged = (_accounts: Array<`0x${string}`>) => {
+    setContextAccounts(_accounts)
+    updateConnected(accounts, _accounts, chainId)
+  }
+
+  const chainChanged = (_chainId: number) => {
+    setChainId(_chainId)
+    updateConnected(accounts, contextAccounts, _chainId)
+  }
+
+  provider.on('accountsChanged', accountsChanged)
+  provider.on('chainChanged', chainChanged)
+  provider.on('contextAccountsChanged', contextAccountsChanged)
+
+  return () => {
+    provider.removeListener('accountsChanged', accountsChanged)
+    provider.removeListener('contextAccountsChanged', contextAccountsChanged)
+    provider.removeListener('chainChanged', chainChanged)
+  }
+}, [chainId, accounts[0], contextAccounts[0], updateConnected])
 ```
 
 ### Example Vue code to monitor accountsChanged and chainChanged
@@ -121,12 +151,20 @@ const [chainId, setChainId] = useState<number>(0)
 ```ts
 const chainId = ref<number | null>(null)
 const accounts = ref<string[]>([])
+const contextAccounts = ref<string[]>([])
 const walletConnected = ref<boolean>(false)
+
+// Allocate the client up provider.
+const provider = createClientUPProvider()
+
+const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>)
+
+// Initially retrieve chainId and accounts
 web3.eth
   ?.getChainId()
   .then(_chainId => {
     chainId.value = Number(_chainId)
-    walletConnected.value = !isEmptyAccount(accounts.value[0]) && !isEmptyAccount(accounts.value[1]) && chainId.value === 42
+    walletConnected.value = accounts.value.length > 0 && contextAccounts.value.length > 0 && chainId.value === 42
   })
   .catch(error => {
     // Ignore error
@@ -139,16 +177,38 @@ web3.eth
   .catch(error => {
     // Ignore error
   })
+provider
+  .request('up_contextAccounts', [])
+  .then(_accounts => {
+    contextAccounts.value = _accounts || []
+  })
+  .catch(error => {
+    // Ignore error
+  })
+
+// Watch for changes in accounts
 provider.on('accountsChanged', (_accounts: `0x${string}`[]) => {
-  accounts.value = _accounts
+  accounts.value = [..._accounts]
 })
+
+// Watch for changes in contextAccounts
+provider.on('contextAccountsChanged', (_accounts: `0x${string}`[]) => {
+  contextAccounts.value = [..._accounts]
+})
+
+// Watch for changes in chainId
 provider.on('chainChanged', (_chainId: number) => {
   chainId.value = _chainId
 })
+
 watch(
-  () => [chainId.value, accounts.value] as [number, Array<`0x${string}`>],
-  ([chainId, accounts]: [number, Array<`0x${string}`>]) => {
-    walletConnected.value = !isEmptyAccount(accounts?.[0]) && !isEmptyAccount(accounts?.[1]) && chainId === 42
+  () => [chainId.value, accounts.value, contextAccounts.value] as [number, Array<`0x${string}`>, Array<`0x${string}`>],
+  ([chainId, accounts, contextAccounts]: [number, Array<`0x${string}`>, Array<`0x${string}`>]) => {
+    // Optionally you can do additional checks here.
+    // For example if you check for accounts?.[0] !== accounts?.[1] you can
+    // ensure that the connected account is not the page owner.
+    // The button will be disabled if the walletConnected flag is false.
+    walletConnected.value = accounts?.length > 0 && contextAccounts?.length > 0 && chainId === 42
   }
 )
 ```
@@ -173,10 +233,38 @@ providerConnector.on('channelCreated', ({ channel, id }) => {
   // for example
   channel.enabled = true;
   // The addresses and chainId it will cause addressChanged and chainChanged events on the client provider.
-  channel.allowAccounts(enable, [profileAddress, ...extraAddresses], chainId)
+  channel.setAllowedAccounts([profileAddress, ...extraAddresses])
 })
 
 ```
+
+### Additonal parent page provider functions
+
+```js
+// These setting will override what's returned from the parent provider
+providerConnector.setAllowedAccounts(addressArray)
+providerConnector.setChainId(chainId)
+providerConnector.setContextAccounts(addressArray)
+
+// These settings will override values specifically for one connection
+channel.setAllowedAccounts(addressArray)
+channel.setChainId(chainId)
+channel.setContextAccounts(addressArray)
+
+// All setX functions can also be used as a writable property.
+channel.enable = true
+channel.accounts = addressArray
+channel.chainId = 42
+channel.contextAccounts = addressArray
+
+// There is also a utility function called setupChannel which can supply
+// all enable, accounts, contextAccounts and chainId at the same time
+channel.setupChannel(enable, [profileAddress], [contextAddress], chainId)
+```
+
+## Flow diagrams
+
+[Diagrams](./docs/diagrams.md)
 
 ## API Docs
 
