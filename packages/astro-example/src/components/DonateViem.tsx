@@ -97,7 +97,7 @@ const DonateWidget = () => {
     if (walletConnected && amount) {
       await client.sendTransaction({
         account: accounts[0] as `0x${string}`,
-        to: accounts[1] as `0x${string}`,
+        to: contextAccounts[0] as `0x${string}`,
         value: parseUnits(amount.toString(), 18),
       })
     }

@@ -91,7 +91,7 @@ async function donate() {
   web3.eth.sendTransaction(
     {
       from: accounts.value[0],
-      to: accounts.value[1],
+      to: contextAccounts.value[0],
       value: utils.toWei(amount.value, 'ether'),
     },
     undefined,

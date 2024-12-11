@@ -73,7 +73,7 @@
   function donate() {
     web3.eth.sendTransaction({
       from: accounts[0],
-      to: accounts[1],
+      to: contextAccounts[0],
       value: web3.utils.toWei(amount, "ether")
     },
     undefined,

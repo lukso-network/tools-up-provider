@@ -160,7 +160,7 @@ class DonateWidget extends LitElement {
     if (this.walletConnected && this.amount) {
       await client.sendTransaction({
         account: this.accounts[0] as `0x${string}`,
-        to: this.accounts[1] as `0x${string}`,
+        to: this.contextAccounts[0] as `0x${string}`,
         value: parseUnits(this.amount.toString(), 18),
       })
     }

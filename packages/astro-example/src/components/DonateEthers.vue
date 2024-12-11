@@ -83,7 +83,7 @@ watch(
 function donate() {
   ethersProvider.send('eth_sendTransaction', {
     from: accounts.value[0],
-    to: accounts.value[1],
+    to: contextAccounts.value[0],
     value: amount.value?.toString() || '0',
   })
 }
