@@ -13,7 +13,7 @@
   const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
 
   function checkWalletStatus() {
-    walletConnected = accounts.length > 0 && contextAccounts.length > 0 && chainId === 42;
+    walletConnected = accounts.length > 0 && contextAccounts.length > 0;
   }
 
   let error = ''; // Error message for validation feedback

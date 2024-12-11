@@ -97,7 +97,7 @@ class DonateWidget extends LitElement {
   }
 
   calculateEnabled() {
-    this.disabled = !this.amount || this.accounts.length === 0 || this.contextAccounts.length === 0 || this.chainId !== 42
+    this.disabled = !this.amount || this.accounts.length === 0 || this.contextAccounts.length === 0
     console.log({ amount: this.amount, accounts: this.accounts, contextAccounts: this.contextAccounts, chainId: this.chainChanged, disabled: this.disabled })
   }
 
@@ -130,7 +130,7 @@ class DonateWidget extends LitElement {
         this.accounts = addresses
       })
       this.contextAccounts = provider.contextAccounts
-      this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && this.chainId === 42
+      this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0
     } catch (error) {
       console.error(error)
       // Ignore error
@@ -143,17 +143,17 @@ class DonateWidget extends LitElement {
 
   accountsChanged(_accounts: Array<`0x${string}`>) {
     this.accounts = [..._accounts]
-    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && this.chainId === 42
+    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0
   }
 
   chainChanged(_chainId: number) {
     this.chainId = _chainId
-    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && this.chainId === 42
+    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0
   }
 
   contextAccountsChanged(_accounts: Array<`0x${string}`>) {
     this.contextAccounts = [..._accounts]
-    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && this.chainId === 42
+    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0
   }
 
   async donate() {

@@ -14,7 +14,7 @@ function initWidget() {
 
   // Update wallet connection status
   function checkWalletStatus() {
-    walletConnected = accounts.length > 0 && contextAccounts.length > 0 && chainId === 42
+    walletConnected = accounts.length > 0 && contextAccounts.length > 0
     const button: HTMLButtonElement = document.getElementById('donateButton') as HTMLButtonElement
     button.disabled = !walletConnected
     const accountNumber = document.getElementById('accountNumber')

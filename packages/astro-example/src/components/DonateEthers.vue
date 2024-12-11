@@ -14,7 +14,7 @@ ethersProvider
   .send('eth_chainId', [])
   .then(_chainId => {
     chainId.value = _chainId
-    walletConnected.value = accounts.value.length > 0 && contextAccounts.value.length > 0 && chainId.value === 42
+    walletConnected.value = accounts.value.length > 0 && contextAccounts.value.length > 0
   })
   .catch(error => {
     // Ignore error
@@ -77,7 +77,7 @@ watch(amount, validateAmount)
 watch(
   () => [chainId.value, accounts.value, contextAccounts.value] as [number, Array<`0x${string}`>, Array<`0x${string}`>],
   ([chainId, accounts, contextAccounts]: [number, Array<`0x${string}`>, Array<`0x${string}`>]) => {
-    walletConnected.value = accounts.length > 0 && contextAccounts.length > 0 && chainId === 42
+    walletConnected.value = accounts.length > 0 && contextAccounts.length > 0
   }
 )
 function donate() {

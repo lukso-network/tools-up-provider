@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// WIP
 import { createClientUPProvider } from '@lukso/up-provider'
 import { ref, watch } from 'vue'
 import Web3, { type SupportedProviders, type EthExecutionAPI } from 'web3'
@@ -15,7 +16,7 @@ web3.eth
   ?.getChainId()
   .then(_chainId => {
     chainId.value = Number(_chainId)
-    walletConnected.value = !!accounts.value[0] && !!accounts.value[1] && chainId.value === 42
+    walletConnected.value = !!accounts.value[0] && !!accounts.value[1]
   })
   .catch(error => {
     // Ignore error
@@ -37,7 +38,7 @@ provider.on('chainChanged', (_chainId: number) => {
 watch(
   () => [chainId.value, accounts.value] as [number, Array<`0x${string}`>],
   ([chainId, accounts]: [number, Array<`0x${string}`>]) => {
-    walletConnected.value = !!accounts?.[0] && !!accounts?.[1] && chainId === 42
+    walletConnected.value = !!accounts?.[0] && !!accounts?.[1]
   }
 )
 async function donate() {

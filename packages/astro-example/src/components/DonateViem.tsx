@@ -42,7 +42,7 @@ const DonateWidget = () => {
 
   const updateConnected = useCallback((_accounts: Array<`0x${string}`>, _contextAccounts: Array<`0x${string}`>, _chainId: number) => {
     console.log(_accounts, _contextAccounts, _chainId)
-    setWalletConnected(_accounts.length > 0 && _contextAccounts.length > 0 && _chainId === 42)
+    setWalletConnected(_accounts.length > 0 && _contextAccounts.length > 0)
   }, [])
 
   // Monitor accountsChanged and chainChained events
