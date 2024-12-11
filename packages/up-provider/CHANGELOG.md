@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.2.0...up-provider-v0.2.1) (2024-12-11)
+
+
+### Bug Fixes
+
+* Remove readme from packages folder and put it at the root ([054d914](https://github.com/lukso-network/tools-up-provider/commit/054d914d2055a38e3ddabc38d63eb21f23f84862))
+
 ## [0.2.0](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.1.7...up-provider-v0.2.0) (2024-12-10)
 
 
