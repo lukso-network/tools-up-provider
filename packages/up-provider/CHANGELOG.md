@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.2](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.2.1...up-provider-v0.2.2) (2025-01-02)
+
+
+### Bug Fixes
+
+* Add some comments ([865f456](https://github.com/lukso-network/tools-up-provider/commit/865f456b479c084aa4d0a913628c4010f7d8d801))
+* Some more cleanup ([4e63d76](https://github.com/lukso-network/tools-up-provider/commit/4e63d76a1b972a10756443177ebbb5f6595a90a8))
+* Some upgrades ([09b7425](https://github.com/lukso-network/tools-up-provider/commit/09b74258e55c25bd8e6ce3f80ed4208555b91dac))
+
 ## [0.2.1](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.2.0...up-provider-v0.2.1) (2024-12-11)
 
 
