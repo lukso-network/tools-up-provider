@@ -37,6 +37,7 @@ interface UPClientProviderEvents {
   injected: (page: `0x${string}`) => void
   rpcUrls: (rpcUrls: string[]) => void
   windowClosed: () => void
+  initialized: () => void
 }
 
 type UPClientProviderOptions = {
@@ -112,6 +113,8 @@ interface UPClientProvider {
   get contextAccounts(): `0x${string}`[]
 
   get isConnected(): boolean
+
+  get isMiniApp(): Promise<boolean>
 }
 class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
   readonly #options: UPClientProviderOptions
@@ -327,6 +330,8 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
 
   const startupPromise = new Promise<void>(resolve => {
     startupResolve = resolve
+  }).then(() => {
+    remote.emit('initialized')
   })
 
   const options: UPClientProviderOptions = {
