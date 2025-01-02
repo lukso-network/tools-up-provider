@@ -142,17 +142,17 @@ class DonateWidget extends LitElement {
 
   accountsChanged(_accounts: Array<`0x${string}`>) {
     this.accounts = [..._accounts]
-    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0
+    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && (this.chainId === lukso.id || this.chainId === luksoTestnet.id)
   }
 
   chainChanged(_chainId: number) {
     this.chainId = _chainId
-    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0
+    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && (this.chainId === lukso.id || this.chainId === luksoTestnet.id)
   }
 
   contextAccountsChanged(_accounts: Array<`0x${string}`>) {
     this.contextAccounts = [..._accounts]
-    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0
+    this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && (this.chainId === lukso.id || this.chainId === luksoTestnet.id)
   }
 
   async donate() {

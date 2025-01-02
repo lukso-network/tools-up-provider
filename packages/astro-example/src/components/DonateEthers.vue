@@ -77,7 +77,7 @@ watch(amount, validateAmount)
 watch(
   () => [chainId.value, accounts.value, contextAccounts.value] as [number, Array<`0x${string}`>, Array<`0x${string}`>],
   ([chainId, accounts, contextAccounts]: [number, Array<`0x${string}`>, Array<`0x${string}`>]) => {
-    walletConnected.value = accounts.length > 0 && contextAccounts.length > 0
+    walletConnected.value = accounts.length > 0 && contextAccounts.length > 0 && (chainId === 42 || chainId === 4201)
   }
 )
 function donate() {
