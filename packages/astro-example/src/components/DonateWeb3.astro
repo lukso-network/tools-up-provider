@@ -2,13 +2,14 @@
 // Client-only initialization of variables
 const minValue = 0.25;
 const maxValue = 1000;
+const defaultValue = 1;
 ---
 
 <div class="donate-widget">
   <h3>Donate LYX<br/><span id="accountNumber"/></h3>
   <div>
     <label for="inputId">Enter Amount:</label>
-    <input id="inputId" type="number" value={minValue} min={minValue} step="0.01" placeholder="Enter amount in LYX" />
+    <input id="inputId" type="number" value={defaultValue} min={minValue} step="0.01" placeholder="Enter amount in LYX" />
     <p id="errorMessage" style="color: red;"></p>
   </div>
   <button id="donateButton" disabled>Donate LYX</button>

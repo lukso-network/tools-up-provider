@@ -18,7 +18,7 @@ const DonateWidget = () => {
   const [accounts, setAccounts] = useState<Array<`0x${string}`>>([])
   const [contextAccounts, setContextAccounts] = useState<Array<`0x${string}`>>([])
   const [walletConnected, setWalletConnected] = useState(false)
-  const [amount, setAmount] = useState<number>(minAmount)
+  const [amount, setAmount] = useState<number>(1)
   const [error, setError] = useState('')
 
   const validateAmount = useCallback((value: number) => {
@@ -38,7 +38,7 @@ const DonateWidget = () => {
 
   const updateConnected = useCallback((accounts: Array<`0x${string}`>, contextAccounts: Array<`0x${string}`>, chainId: number) => {
     console.log(accounts, chainId)
-    setWalletConnected(accounts.length > 0 && contextAccounts.length > 0)
+    setWalletConnected(accounts.length > 0 && contextAccounts.length > 0 && (chainId === 42 || chainId === 4201))
   }, [])
 
   // Monitor accountsChanged and chainChained events
@@ -107,7 +107,7 @@ const DonateWidget = () => {
   return (
     <div className="donate-widget">
       <h3>
-        Donate LYX
+        Donate LYX to
         <br />
         <small>{contextAccounts.length > 0 ? contextAccounts[0] : 'not connected'}</small>
       </h3>

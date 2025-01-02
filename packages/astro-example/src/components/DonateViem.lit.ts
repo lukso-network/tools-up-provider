@@ -2,7 +2,7 @@ import { createClientUPProvider } from '@lukso/up-provider'
 import { LitElement, css, html } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { createWalletClient, custom, parseUnits } from 'viem'
-import { lukso } from 'viem/chains'
+import { lukso, luksoTestnet } from 'viem/chains'
 
 const provider = createClientUPProvider()
 const client = createWalletClient({
@@ -79,14 +79,13 @@ class DonateWidget extends LitElement {
 
   @property({ type: Number }) minAmount = 0.25
   @property({ type: Number }) maxAmount = 1000
-  @property({ type: Number }) defaultAmount = this.minAmount
+  @property({ type: Number }) defaultAmount = 1
   @state() chainId = 0
   @state() accounts: Array<`0x${string}`> = []
   @state() contextAccounts: Array<`0x${string}`> = []
   @state() walletConnected = false
   @state() error = '' // Error message for validation feedback
   @state() amount = this.defaultAmount
-  @state() presetAmounts = [0.01, 0.05, 0.1]
   @state() disabled = true
 
   // Watch for changes in propA and propB
@@ -97,7 +96,7 @@ class DonateWidget extends LitElement {
   }
 
   calculateEnabled() {
-    this.disabled = !this.amount || this.accounts.length === 0 || this.contextAccounts.length === 0
+    this.disabled = !this.amount || this.accounts.length === 0 || this.contextAccounts.length === 0 || this.chainId !== 42
     console.log({ amount: this.amount, accounts: this.accounts, contextAccounts: this.contextAccounts, chainId: this.chainChanged, disabled: this.disabled })
   }
 
@@ -130,7 +129,7 @@ class DonateWidget extends LitElement {
         this.accounts = addresses
       })
       this.contextAccounts = provider.contextAccounts
-      this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0
+      this.walletConnected = this.accounts.length > 0 && this.contextAccounts.length > 0 && (this.chainId === lukso.id || this.chainId === luksoTestnet.id)
     } catch (error) {
       console.error(error)
       // Ignore error
@@ -162,6 +161,8 @@ class DonateWidget extends LitElement {
         account: this.accounts[0] as `0x${string}`,
         to: this.contextAccounts[0] as `0x${string}`,
         value: parseUnits(this.amount.toString(), 18),
+        chain: this.chainId === lukso.id ? lukso : luksoTestnet,
+        kzg: undefined,
       })
     }
   }
@@ -170,7 +171,7 @@ class DonateWidget extends LitElement {
     return html`
       <div class="widget">
         <div class="donate-widget">
-          <h3>Donate LYX LIT<br /><small>${this.contextAccounts.length > 0 ? this.contextAccounts[0] : 'not connected'}</small></h3>
+          <h3>Donate LYX to<br /><small>${this.contextAccounts.length > 0 ? this.contextAccounts[0] : 'not connected'}</small></h3>
           <div>
             <label for="amount">Enter Amount:</label>
             <input id="amount" type="number" .value="${this.amount}" @input="${this.handleInput}" min="${this.minAmount}" max="${this.maxAmount}" step="1" />

@@ -63,7 +63,7 @@ watch(
     // For example if you check for accounts?.[0] !== accounts?.[1] you can
     // ensure that the connected account is not the page owner.
     // The button will be disabled if the walletConnected flag is false.
-    walletConnected.value = accounts?.length > 0 && contextAccounts?.length > 0
+    walletConnected.value = accounts?.length > 0 && contextAccounts?.length > 0 && (chainId === 42 || chainId === 4201)
   }
 )
 

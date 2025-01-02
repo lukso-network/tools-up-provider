@@ -3,13 +3,14 @@ const currentPath = Astro.url.pathname;
 const size = 10;
 ---
 <div class="nav">&nbsp;❀
-  <a title="Vue with Web3.js" href="/" class={`button-link ${currentPath === '/' ? 'disabled' : ''}`}><img src="/images/vuejs.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
-  <a title="React with Web3.js" href="/react-web3" class={`button-link ${currentPath === '/react-web3' ? 'disabled' : ''}`}><img src="/images/react.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
-  <a title="React with Viem" href="/react-viem" class={`button-link ${currentPath === '/react-viem' ? 'disabled' : ''}`}><img src="/images/react.svg" width={size} height={size} /> <img src="/images/viem.png" width="15" height="15" /></a>
-  <a title="LIT with Viem" href="/lit-viem" class={`button-link ${currentPath === '/lit-viem' ? 'disabled' : ''}`}><img src="/images/lit.svg" color="white" width={size} height={size} /> <img src="/images/viem.png" width="15" height="15" /></a>
-  <a title="Vue with ethers.js" href="/vue-ethers" class={`button-link ${currentPath === '/vue-ethers' ? 'disabled' : ''}`}><img src="/images/vuejs.svg" color="white" width={size} height={size} /> <img src="/images/ethersjs.svg" width="15" height="15" /></a>
-  <a title="Svelte with web3.js" href="/svelte-web3" class={`button-link ${currentPath === '/svelte-web3' ? 'disabled' : ''}`}><img src="/images/svelte.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
-  <a title="Astro with web3.js" href="/astro-web3" class={`button-link ${currentPath === '/astro-web3' ? 'disabled' : ''}`}><img src="/images/astro.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
+  <a title="Vue with Web3.js" href="/" class={`hover-show button-link ${currentPath === '/' ? 'disabled' : ''}`}><img src="/images/vuejs.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
+  <a title="React with Web3.js" href="/react-web3" class={`hover-show button-link ${currentPath === '/react-web3' ? 'disabled' : ''}`}><img src="/images/react.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
+  <a title="React with Viem" href="/react-viem" class={`hover-show button-link ${currentPath === '/react-viem' ? 'disabled' : ''}`}><img src="/images/react.svg" width={size} height={size} /> <img src="/images/viem.png" width="15" height="15" /></a>
+  <a title="LIT with Viem" href="/lit-viem" class={`hover-show button-link ${currentPath === '/lit-viem' ? 'disabled' : ''}`}><img src="/images/lit.svg" color="white" width={size} height={size} /> <img src="/images/viem.png" width="15" height="15" /></a>
+  <a title="Vue with ethers.js" href="/vue-ethers" class={`hover-show button-link ${currentPath === '/vue-ethers' ? 'disabled' : ''}`}><img src="/images/vuejs.svg" color="white" width={size} height={size} /> <img src="/images/ethersjs.svg" width="15" height="15" /></a>
+  <a title="Svelte with web3.js" href="/svelte-web3" class={`hover-show button-link ${currentPath === '/svelte-web3' ? 'disabled' : ''}`}><img src="/images/svelte.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
+  <a title="Astro with web3.js" href="/astro-web3" class={`hover-show button-link ${currentPath === '/astro-web3' ? 'disabled' : ''}`}><img src="/images/astro.svg" width={size} height={size} /> <img src="/images/web3js.svg" width="15" height="15" /></a>
+  <div class="hover-show"><small>{currentPath}</small></div>
 </div>
 <style>
 .nav {
@@ -19,10 +20,10 @@ const size = 10;
   color: #333;
   font-size: 20px;
 
-  & a {
+  & .hover-show {
     display: none;
   }
-  &:hover a {
+  &:hover .hover-show {
     display: inline-block;
   }
 }

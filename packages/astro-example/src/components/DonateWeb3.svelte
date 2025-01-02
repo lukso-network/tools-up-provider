@@ -7,13 +7,12 @@
   let accounts: string[] = [];
   let contextAccounts: string[] = [];
   let walletConnected = false;
-  const presetAmounts = [0.01, 0.05, 0.1];
 
   const provider = createClientUPProvider();
   const web3 = new Web3(provider as SupportedProviders<EthExecutionAPI>);
 
   function checkWalletStatus() {
-    walletConnected = accounts.length > 0 && contextAccounts.length > 0;
+    walletConnected = accounts.length > 0 && contextAccounts.length > 0 && (chainId === 42 || chainId === 4201);
   }
 
   let error = ''; // Error message for validation feedback
@@ -82,7 +81,7 @@
 </script>
 
 <div class="donate-widget">
-  <h3>Donate LYX<br/>{ contextAccounts.length > 0 ? contextAccounts[0] : 'not connected' }</h3>
+  <h3>Donate LYX to<br/>{ contextAccounts.length > 0 ? contextAccounts[0] : 'not connected' }</h3>
   <div>
     <label for="amount">Enter Amount:</label>
     <input

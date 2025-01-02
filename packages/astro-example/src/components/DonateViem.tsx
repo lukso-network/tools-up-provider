@@ -1,7 +1,7 @@
 import { createClientUPProvider } from '@lukso/up-provider'
 import { useCallback, useEffect, useState } from 'react'
 import { createWalletClient, custom, parseUnits } from 'viem'
-import { lukso } from 'viem/chains'
+import { lukso, luksoTestnet } from 'viem/chains'
 import './Donate.scss'
 
 const provider = createClientUPProvider()
@@ -22,7 +22,7 @@ const DonateWidget = () => {
   const [accounts, setAccounts] = useState<Array<`0x${string}`>>([])
   const [contextAccounts, setContextAccounts] = useState<Array<`0x${string}`>>([])
   const [walletConnected, setWalletConnected] = useState(false)
-  const [amount, setAmount] = useState<number>(minAmount)
+  const [amount, setAmount] = useState<number>(1)
   const [error, setError] = useState('')
 
   const validateAmount = useCallback((value: number) => {
@@ -42,7 +42,7 @@ const DonateWidget = () => {
 
   const updateConnected = useCallback((_accounts: Array<`0x${string}`>, _contextAccounts: Array<`0x${string}`>, _chainId: number) => {
     console.log(_accounts, _contextAccounts, _chainId)
-    setWalletConnected(_accounts.length > 0 && _contextAccounts.length > 0)
+    setWalletConnected(_accounts.length > 0 && _contextAccounts.length > 0 && (_chainId === lukso.id || _chainId === luksoTestnet.id))
   }, [])
 
   // Monitor accountsChanged and chainChained events
@@ -99,6 +99,8 @@ const DonateWidget = () => {
         account: accounts[0] as `0x${string}`,
         to: contextAccounts[0] as `0x${string}`,
         value: parseUnits(amount.toString(), 18),
+        chain: chainId === lukso.id ? lukso : luksoTestnet,
+        kzg: undefined,
       })
     }
   }
@@ -106,7 +108,7 @@ const DonateWidget = () => {
   return (
     <div className="donate-widget">
       <h3>
-        Donate LYX
+        Donate LYX to
         <br />
         <small>{contextAccounts.length > 0 ? contextAccounts[0] : 'not connected'}</small>
       </h3>
