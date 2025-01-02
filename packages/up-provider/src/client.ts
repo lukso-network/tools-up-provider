@@ -40,6 +40,9 @@ interface UPClientProviderEvents {
   initialized: () => void
 }
 
+/**
+ * Internal closure for UPClientProvider to allow late initialization of class.
+ */
 type UPClientProviderOptions = {
   client?: JSONRPCClient
   chainId: () => number
@@ -58,6 +61,9 @@ type UPClientProviderOptions = {
 
 const pendingRequests = new Map<string, RequestQueueItem>()
 
+/**
+ * Public interface for UPClientProvider.
+ */
 interface UPClientProvider {
   get isUPClientProvider(): boolean
   /**
@@ -106,16 +112,31 @@ interface UPClientProvider {
   request(method: string, params?: JSONRPCParams, clientParams?: any): Promise<any>
   request(method: { method: string; params?: JSONRPCParams }, clientParams?: any): Promise<any>
 
+  /**
+   * Get the current chainId this is configured for and connected to.
+   */
   get chainId(): number
 
+  /**
+   * Mirrors allowedAccounts, the accounts the provider is connected to
+   */
   get accounts(): `0x${string}`[]
 
+  /**
+   * Additional context accounts provided by the parent connector.
+   * Inside of the universaleverything grid this will contain the account
+   * of the owner of the displayed grid (i.e. the owner of the profile being displayed.)
+   */
   get contextAccounts(): `0x${string}`[]
 
   get isConnected(): boolean
 
   get isMiniApp(): Promise<boolean>
 }
+
+/**
+ * Internal class for UPClientProvider.
+ */
 class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
   readonly #options: UPClientProviderOptions
   constructor(options: any) {
@@ -163,6 +184,14 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
   }
 }
 
+/**
+ * @internal
+ * Search for the parent provider and connect it. This routine is internally called
+ * @param up - search input if specific window should be pinged.
+ * @param remote - the provider doing the pinging.
+ * @param options - the internal closure for that provider.
+ * @returns The provider if it successfully connected or throws an error.
+ */
 async function testWindow(up: Window | undefined | null, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider> {
   const _up = up || (typeof window !== 'undefined' ? window : undefined)
   if (!_up) {
@@ -221,6 +250,13 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
   })
 }
 
+/**
+ * Find the up connector in the parent or popup window.
+ * @param authURL - optionlly pass a URL for a popup to be launched in an iframe to connect
+ * @param remote - the up provider to be connect
+ * @param options - the internal closure for that provider.
+ * @returns
+ */
 async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider | undefined> {
   if (typeof authURL === 'object' && !(authURL instanceof Window) && authURL?.url) {
     const info = localStorage.getItem(`upProvider:info:${authURL}`)
@@ -270,6 +306,14 @@ async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options
   throw new Error('No UP found')
 }
 
+/**
+ * Helper routines to initiate the search procedure for the parent provider.
+ * @param authURL - optional URL for popup window
+ * @param remote - the up provider to be connected
+ * @param options - the internal closure for that provider.
+ * @param search - if true then it will search, else it expects either a window or URL.
+ * @returns The connected provider or throws an error.
+ */
 async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider, options: UPClientProviderOptions, search = false): Promise<UPClientProvider> {
   let up: UPClientProvider | undefined =
     (typeof authURL === 'object' && authURL instanceof Window) || authURL == null
@@ -302,6 +346,7 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
         break
       }
 
+      // Wait for a second for each try.
       await new Promise(resolve => setTimeout(resolve, 1000))
 
       retry--
@@ -344,6 +389,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   const remote = new _UPClientProvider(options)
   let searchPromise: Promise<UPClientProvider> | null
 
+  // Register the provider as a wallet by announcing it.
   const providerInfo = {
     uuid: uuidv4(),
     name: 'UE Universal Profile',
@@ -351,6 +397,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     rdns: 'dev.lukso.auth',
   }
 
+  // Announce event.
   const announceEvent = new CustomEvent('eip6963:announceProvider', {
     detail: Object.freeze({ info: providerInfo, provider: remote }),
   })
@@ -493,6 +540,8 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   const wrapper = async (method: string, params?: unknown[]) => {
     switch (method) {
       case 'eth_call':
+        // Is this call is used to evaluate or simulate a transaction then we have to send it to the parent provider.
+        // Otherwise we can send it directly to a configured RPC endpoint.
         if (rpcUrls.length > 0 && Object.keys((params?.[0] ?? {}) as Record<string, unknown>).every(key => !/^gasPrice|maxFeePerGas|maxPriorityFeePerGas|value$/.test(key))) {
           clientLog('client direct rpc', rpcUrls, method, params)
 

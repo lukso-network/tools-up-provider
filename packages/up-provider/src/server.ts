@@ -15,6 +15,12 @@ interface UPClientChannelEvents {
   injected: (accounts: `0x${string}`[]) => void
 }
 
+/**
+ * API for client channel, each time an iframe's UPClientProvider is allocated and connected
+ * the UPProviderConnector will create and emit a new UPClientChannel.
+ * The UPClientChannel will have the API to control that channel.
+ * The configuration will default to values from the UPProviderConnector but enable will be false.
+ */
 interface UPClientChannel {
   readonly window: Window
   readonly element: HTMLIFrameElement | null
@@ -63,24 +69,122 @@ interface UPClientChannel {
    */
   removeAllListeners(event?: EventEmitter.EventNames<UPClientChannelEvents>): this
 
+  /**
+   * Resume after a delay
+   * @param delay - delay in milliseconds
+   */
   resume(delay: number): void
+  /**
+   * Send message to dapp.
+   * @param method - method name/event
+   * @param params - parameters
+   */
   send(method: string, params: unknown[]): Promise<void>
+
+  /**
+   * This represents the normal "eth_accounts" method list.
+   * @param accounts - list of addresses
+   */
   setAllowedAccounts(accounts: `0x${string}`[]): Promise<void>
+
+  /**
+   * This represents the normal "eth_accounts" method list. (setter mirrors setAllowedAccounts)
+   */
   set allowedAccounts(accounts: `0x${string}`[])
+
+  /**
+   * This represents the normal "eth_accounts" method list.
+   * @returns list of accounts
+   */
   get allowedAccounts(): `0x${string}`[]
+
+  /**
+   * These are extra accounts sent to each provider. In the ue.io grid, this is used to
+   * represent the account that is the grid owner.
+   * @param accounts - list of addresses
+   */
   setContextAccounts(contextAccounts: `0x${string}`[]): Promise<void>
+
+  /**
+   * These are extra accounts sent to each provider. In the ue.io grid, this is used to
+   * represent the account that is the grid owner. (setter mirrors setContextAccounts)
+   * @param accounts - list of addresses
+   */
   set contextAccounts(contextAccounts: `0x${string}`[])
+
+  /**
+   * These are extra accounts sent to each provider. In the ue.io grid, this is used to
+   * represent the account that is the grid owner.
+   * @returns list of addresses
+   */
   get contextAccounts(): `0x${string}`[]
+
+  /**
+   * ChainId
+   * @param chainId - chain id
+   */
   setChainId(chainId: number): Promise<void>
+
+  /**
+   * ChainId
+   * @param chainId - chain id
+   */
   set chainId(chainId: number)
+
+  /**
+   * ChainId
+   * @returns chain id
+   */
   get chainId(): number
+
+  /**
+   * Enable or disable the channel.
+   * @param enable - enable or disable the channel
+   */
   setEnable(enable: boolean): Promise<void>
+
+  /**
+   * Enable or disable the channel.
+   * @returns is channel enabled
+   */
   get enable(): boolean
+
+  /**
+   * Enable or disable the channel.
+   * @param enable - enable or disable the channel
+   */
   set enable(value: boolean)
+
+  /**
+   * RPC urls
+   * @param rpcUrls - list of rpc urls (used by client provider to short circuit requests)
+   */
   setRpcUrls(rpcUrls: string[]): Promise<void>
+
+  /**
+   * RPC urls
+   * @param rpcUrls - list of rpc urls (used by client provider to short circuit requests)
+   */
   set rpcUrls(rpcUrls: string[])
+
+  /**
+   * RPC urls
+   * @returns list of rpc urls (used by client provider to short circuit requests)
+   */
   get rpcUrls(): string[]
+
+  /**
+   * Helper to setup the channel with all the necessary information.
+   * @param enable - enable
+   * @param accounts - accounts (allowed accounts)
+   * @param contextAccounts - context accounts
+   * @param chainId - chainId
+   */
   setupChannel(enable: boolean, accounts: `0x${string}`[], contextAccounts: `0x${string}`[], chainId: number): Promise<void>
+
+  /**
+   * Close the channel
+   */
   close(): void
 }
 
@@ -348,6 +452,10 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
   constructor(channels: Map<string, UPClientChannel>, options: any) {
     super()
     this.#channels = channels
+
+    // This is a private late initialization of the class properties.
+    // Since there is no way to do a await inside of a constructor this is used to provide
+    // certain values late, but still have them hidden from external access.
     this.#options = options as UPProviderConnectorOptions
   }
 

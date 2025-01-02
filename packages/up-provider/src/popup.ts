@@ -1,6 +1,10 @@
 import { LitElement, html, css, type PropertyDeclarations } from 'lit'
 
-// Define the component class
+/**
+ * Small lit component to work on popup.
+ * This is not being called quite yet but will be the way to support
+ * the popup in the future.
+ */
 export class ModalPopup extends LitElement {
   static styles = css`
     .modal {
