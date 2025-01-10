@@ -460,7 +460,7 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
   }
 
   private _getChannels = (): Map<string, UPClientChannel> => {
-    return this._getChannels()
+    return this.#channels
   }
   private _getOptions = (): UPProviderConnectorOptions => {
     return this.#options
