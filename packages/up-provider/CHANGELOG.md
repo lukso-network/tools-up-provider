@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.0...up-provider-v0.3.1) (2025-01-10)
+
+
+### Bug Fixes
+
+* Fix recursion ([3290715](https://github.com/lukso-network/tools-up-provider/commit/3290715ec50ead56262cd040455e3be37531d161))
+
 ## [0.3.0](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.2.2...up-provider-v0.3.0) (2025-01-10)
 
 
