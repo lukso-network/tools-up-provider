@@ -459,42 +459,49 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
     this.#options = options as UPProviderConnectorOptions
   }
 
+  private _getChannels = (): Map<string, UPClientChannel> => {
+    return this._getChannels()
+  }
+  private _getOptions = (): UPProviderConnectorOptions => {
+    return this.#options
+  }
+
   close() {
-    if (this.#options.providerHandler) {
-      window.removeEventListener('message', this.#options.providerHandler)
+    if (this._getOptions().providerHandler) {
+      window.removeEventListener('message', this._getOptions().providerHandler as any)
     }
   }
 
   get provider(): UPProviderEndpoint {
-    return this.#options.provider
+    return this._getOptions().provider
   }
 
   async setAllowedAccounts(accounts: `0x${string}`[]): Promise<void> {
-    const contextAccountsChanged = arrayChanged(this.#options.contextAccounts, accounts)
+    const contextAccountsChanged = arrayChanged(this._getOptions().contextAccounts, accounts)
     if (contextAccountsChanged) {
-      this.#options.contextAccounts = [...accounts]
+      this._getOptions().contextAccounts = [...accounts]
       for (const item of this.channels.values()) {
-        await item.setContextAccounts(cleanupAccounts(this.#options.contextAccounts))
+        await item.setContextAccounts(cleanupAccounts(this._getOptions().contextAccounts))
       }
     }
   }
   get allowedAccounts(): `0x${string}`[] {
-    return cleanupAccounts(this.#options.allowedAccounts)
+    return cleanupAccounts(this._getOptions().allowedAccounts)
   }
   set allowedAccounts(accounts: `0x${string}`[]) {
     this.setAllowedAccounts(accounts)
   }
 
   async setChainId(chainId: number): Promise<void> {
-    if (this.#options.chainId !== chainId) {
-      this.#options.chainId = chainId
+    if (this._getOptions().chainId !== chainId) {
+      this._getOptions().chainId = chainId
       for (const item of this.channels.values()) {
-        await item.setChainId(this.#options.chainId)
+        await item.setChainId(this._getOptions().chainId)
       }
     }
   }
   get chainId(): number {
-    return this.#options.chainId
+    return this._getOptions().chainId
   }
   set chainId(chainId: number) {
     this.setChainId(chainId)
@@ -503,7 +510,7 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
    * Get a map of all clients by their ID.
    */
   get channels(): Map<string, UPClientChannel> {
-    return new Map(this.#channels)
+    return new Map(this._getChannels())
   }
 
   /**
@@ -514,12 +521,12 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
   getChannel(id: string | Window | HTMLIFrameElement | UPClientChannel | null): UPClientChannel | null {
     let _id = id
     if (typeof _id === 'string') {
-      return this.#channels.get(_id) || null
+      return this._getChannels().get(_id) || null
     }
     if ('element' in (_id as any) || 'window' in (_id as any)) {
       _id = (_id as UPClientChannel).element || (_id as UPClientChannel).window
     }
-    for (const item of this.#channels.values()) {
+    for (const item of this._getChannels().values()) {
       if (item.window === _id || item.element === _id) {
         return item
       }
@@ -536,16 +543,16 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
    * @param page list of addresses
    */
   async setContextAccounts(contextAccounts: `0x${string}`[]) {
-    const contextAccountsChanged = arrayChanged(this.#options.contextAccounts, contextAccounts)
+    const contextAccountsChanged = arrayChanged(this._getOptions().contextAccounts, contextAccounts)
     if (contextAccountsChanged) {
-      this.#options.contextAccounts = [...contextAccounts]
+      this._getOptions().contextAccounts = [...contextAccounts]
       for (const item of this.channels.values()) {
-        await item.setContextAccounts(cleanupAccounts(this.#options.contextAccounts))
+        await item.setContextAccounts(cleanupAccounts(this._getOptions().contextAccounts))
       }
     }
   }
   get contextAccounts(): `0x${string}`[] {
-    return cleanupAccounts(this.#options.contextAccounts)
+    return cleanupAccounts(this._getOptions().contextAccounts)
   }
   set contextAccounts(contextAccounts: `0x${string}`[]) {
     this.setContextAccounts(contextAccounts)
@@ -559,42 +566,42 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
    * @param rpcUrls
    */
   async setupProvider(provider: any, rpcUrls: string | string[]): Promise<void> {
-    this.#options.promise = new Promise<void>((resolve, reject) => {
+    this._getOptions().promise = new Promise<void>((resolve, reject) => {
       ;(async () => {
         try {
-          this.#options.provider = provider
+          this._getOptions().provider = provider
           const newRpcUrls = Array.isArray(rpcUrls) ? rpcUrls : [rpcUrls]
-          if (arrayChanged(newRpcUrls, this.#options.rpcUrls)) {
-            this.#options.rpcUrls = newRpcUrls
+          if (arrayChanged(newRpcUrls, this._getOptions().rpcUrls)) {
+            this._getOptions().rpcUrls = newRpcUrls
             for (const item of this.channels.values()) {
-              await item.setRpcUrls(this.#options.rpcUrls)
+              await item.setRpcUrls(this._getOptions().rpcUrls)
             }
           }
-          const _chainId = await this.#options.provider.request({
+          const _chainId = await this._getOptions().provider.request({
             method: 'eth_chainId',
             params: [],
           })
           for (const item of this.channels.values()) {
-            await item.setChainId(this.#options.chainId)
+            await item.setChainId(this._getOptions().chainId)
           }
-          const _accounts = await this.#options.provider.request({
+          const _accounts = await this._getOptions().provider.request({
             method: 'eth_accounts',
             params: [],
           })
-          const accountsChanged = arrayChanged(this.#options.allowedAccounts, _accounts)
+          const accountsChanged = arrayChanged(this._getOptions().allowedAccounts, _accounts)
           if (accountsChanged) {
-            this.#options.chainId = _chainId
-            this.#options.allowedAccounts = [..._accounts]
+            this._getOptions().chainId = _chainId
+            this._getOptions().allowedAccounts = [..._accounts]
             for (const item of this.channels.values()) {
-              await item.setAllowedAccounts(cleanupAccounts(this.#options.allowedAccounts))
+              await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
             }
           }
-          this.#options.provider.on('accountsChanged', async (_accounts: `0x${string}`[]) => {
-            const accountsChanged = arrayChanged(this.#options.allowedAccounts, _accounts)
+          this._getOptions().provider.on('accountsChanged', async (_accounts: `0x${string}`[]) => {
+            const accountsChanged = arrayChanged(this._getOptions().allowedAccounts, _accounts)
             if (accountsChanged) {
-              this.#options.allowedAccounts = [..._accounts]
+              this._getOptions().allowedAccounts = [..._accounts]
               for (const item of this.channels.values()) {
-                await item.setAllowedAccounts(cleanupAccounts(this.#options.allowedAccounts))
+                await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
               }
             }
           })

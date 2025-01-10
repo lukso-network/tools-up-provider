@@ -144,43 +144,49 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
     this.#options = options as UPClientProviderOptions
   }
 
+  private _getOptions = () => {
+    return this.#options
+  }
+
   get isUPClientProvider(): boolean {
     return true
   }
 
   get isConnected(): boolean {
-    return this.#options.allowedAccounts().length > 0
+    return this._getOptions().allowedAccounts().length > 0
   }
 
   get isMiniApp(): Promise<boolean> {
-    return this.#options?.startupPromise.catch(() => false).then(() => true)
+    return this._getOptions()
+      ?.startupPromise.catch(() => false)
+      .then(() => true)
   }
 
   async request(method: { method: string; params?: JSONRPCParams }, clientParams?: any): Promise<any>
   async request(method: string, params?: JSONRPCParams, clientParams?: any): Promise<any>
   async request(_method: string | { method: string; params?: JSONRPCParams }, _params?: JSONRPCParams, _clientParams?: any): Promise<any> {
-    await this.#options?.startupPromise
+    await this._getOptions()?.startupPromise
     // Internally this will decode method.method and method.params if it was sent.
     // i.e. this method is patched.
     const method = typeof _method === 'string' ? _method : _method.method
     const params = typeof _method === 'string' ? _params : _method.params
     const clientParams = typeof _method === 'string' ? _clientParams : _params
     if (method === 'up_contextAccounts') {
-      return this.#options.contextAccounts()
+      return this._getOptions().contextAccounts()
     }
-    return this.#options?.client?.request(method, params, clientParams) || null
+    return this._getOptions()?.client?.request(method, params, clientParams) || null
   }
 
   get chainId() {
-    return this.#options?.chainId() || 0
+    return this._getOptions()?.chainId() || 0
   }
 
   get accounts() {
-    return this.#options?.allowedAccounts() || []
+    return this._getOptions()?.allowedAccounts() || []
   }
 
   get contextAccounts() {
-    return this.#options?.contextAccounts() || []
+    return this._getOptions()?.contextAccounts() || []
   }
 }
 
