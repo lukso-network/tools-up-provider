@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.2.2...up-provider-v0.3.0) (2025-01-10)
+
+
+### Features
+
+* Allow proxies to work ([6518583](https://github.com/lukso-network/tools-up-provider/commit/6518583eecb71b454f5829aeff7a521ea3c7f287))
+
 ## [0.2.2](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.2.1...up-provider-v0.2.2) (2025-01-02)
 
 
