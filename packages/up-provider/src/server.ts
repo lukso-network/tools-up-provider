@@ -1,6 +1,6 @@
 import debug from 'debug'
 import EventEmitter3, { type EventEmitter } from 'eventemitter3'
-import { type JSONRPCErrorResponse, type JSONRPCParams, JSONRPCServer, type JSONRPCSuccessResponse } from 'json-rpc-2.0'
+import { type JSONRPCError, type JSONRPCErrorResponse, type JSONRPCParams, JSONRPCServer, type JSONRPCSuccessResponse } from 'json-rpc-2.0'
 import { v4 as uuidv4 } from 'uuid'
 import { arrayChanged, cleanupAccounts } from '.'
 
@@ -13,6 +13,7 @@ interface UPClientChannelEvents {
   requestAccounts: (accounts: `0x${string}`[]) => void
   chainChanged: (chainId: number) => void
   injected: (accounts: `0x${string}`[]) => void
+  sentTransaction: (tx: { from: `0x${string}`; to: `0x${string}`; value?: bigint; error?: JSONRPCError; result?: any }) => void
 }
 
 /**
@@ -821,18 +822,49 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
             ...event.data,
             id: `${channelId}:${event.data.id}`,
           }
-          server.receive(request).then(response => {
-            if (response && typeof response.id === 'string') {
-              if (!response.id.startsWith(`${channelId}:`)) {
-                console.error(`Invalid response id ${response.id} on channel ${channelId}`)
-                return
+          server.receive(request).then(
+            response => {
+              if (response && typeof response.id === 'string') {
+                if (request.method === 'eth_sendTransaction') {
+                  if (response.error) {
+                    console.error('Error sending transaction', response.error)
+                  }
+                  channel_.emit('sentTransaction', {
+                    from: request.params[0]?.from,
+                    to: request.params[0]?.to,
+                    value: request.params[0]?.value,
+                    result: response.result,
+                    error: response.error,
+                  })
+                }
+                if (!response.id.startsWith(`${channelId}:`)) {
+                  console.error(`Invalid response id ${response.id} on channel ${channelId}`)
+                  return
+                }
+                serverChannel?.postMessage({
+                  ...response,
+                  id: JSON.parse(response.id.replace(`${channelId}:`, '')),
+                })
+              }
+            },
+            (error: any) => {
+              if (request.method === 'eth_sendTransaction') {
+                if (error) {
+                  console.error('Error sending transaction', error)
+                }
+                channel_.emit('sentTransaction', {
+                  from: request.params[0]?.from,
+                  to: request.params[0]?.to,
+                  value: request.params[0]?.value,
+                  error,
+                })
               }
               serverChannel?.postMessage({
-                ...response,
-                id: JSON.parse(response.id.replace(`${channelId}:`, '')),
+                error,
+                id: JSON.parse(request.id.replace(`${channelId}:`, '')),
               })
             }
-          })
+          )
         } catch (error) {
           console.error('Error parsing JSON RPC request', error, event)
         }

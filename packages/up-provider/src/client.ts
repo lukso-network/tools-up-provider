@@ -296,7 +296,7 @@ async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options
     }
     return
   }
-  const current = window instanceof Window ? window.opener || window.parent : null
+  const current = typeof window !== 'undefined' && window instanceof Window ? window.opener || window.parent : null
   if (current) {
     const up = await testWindow(current, remote, options)
     if (up) {
