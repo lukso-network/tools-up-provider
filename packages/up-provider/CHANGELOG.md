@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.1...up-provider-v0.3.2) (2025-01-24)
+
+
+### Bug Fixes
+
+* Add new sentTransaction event to each channel ([9d48dad](https://github.com/lukso-network/tools-up-provider/commit/9d48dad1b6a42d6ca08641fa55e23f15ba44052d))
+
 ## [0.3.1](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.0...up-provider-v0.3.1) (2025-01-10)
 
 
