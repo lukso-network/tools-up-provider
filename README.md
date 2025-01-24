@@ -1,11 +1,9 @@
 # up-provider
 
-The up-provider allows dApps to function as mini-apps and allows parent applications to one-click-connect
-to your mini-app using the up-provider.
+The up-provider allows dApps to function as mini-apps in the context of a parent website, that supports the up-provider. This allows users of the parent applications to one-click-connect
+to your mini-app.
 
-Mini-apps are dApps loaded in iframes in the context of other applications.
-
-This package also contains the server connector for parent applications (See on the end)
+This package also contains the [server connector for parent applications](#provider-server-for-parent-pages).
 
 ## Installation
 
@@ -13,9 +11,9 @@ This package also contains the server connector for parent applications (See on 
 npm install @lukso/up-provider
 ```
 
-## Grid Widget side of provider
+## Provider for mini-apps
 
-Client side (for example inside of a grid widget) setup
+Client side setup
 
 ### Using with viem
 
@@ -103,12 +101,12 @@ provider.contextAccounts
 //> ['0x1234...']
 ```
 
-### Examples to monitor "accountsChanged" and "chainChained"
+### Examples to monitor "accountsChanged", "contextAccountsChanged" and "chainChained"
 
 You should use some kind of watch/useEffect or other reactive function to watch the
 `accountsChanged`, `contextAccountsChanged` and `chainChanged'` events. You can initially call `eth_accounts`, `up_contextAccounts` (or provider.contextAccounts) and `eth_chainId` to initialize accounts and chainId.
 
-### Example React code to monitor accountsChanged, contextAccountsChanged and chainChained
+### Example React code for events
 
 The output is a boolean walletConnected which will be true/false.
 
@@ -190,7 +188,7 @@ useEffect(() => {
 }, [chainId, accounts[0], contextAccounts[0], updateConnected])
 ```
 
-### Example Vue code to monitor accountsChanged and chainChanged
+### Example Vue code for events
 
 ```ts
 const chainId = ref<number | null>(null)
@@ -257,7 +255,7 @@ watch(
 )
 ```
 
-## Parent page side of the up-provider
+## Provider server for parent pages
 
 The parent page side of the up-provider, is used in pages that host mini-apps and can pass up connections from iframes to a parent provider like `window.ethereum` (referred to as orignalProvider below)
 
