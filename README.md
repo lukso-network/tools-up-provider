@@ -1,6 +1,6 @@
 # up-provider
 
-The EIP-1193 compatible up-provider allows dApps to function as mini-apps in the context of a parent website, that supports the up-provider. This allows users of the parent applications to one-click-connect
+The [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) compatible up-provider allows dApps to function as mini-apps in the context of a parent website, that supports the up-provider. This allows users of the parent applications to one-click-connect
 to your mini-app.
 
 This package also contains the [server connector for parent applications](#provider-server-for-parent-pages).
@@ -13,7 +13,7 @@ npm install @lukso/up-provider
 
 ## Provider for mini-apps
 
-Client side setup of the EIP-1193 up-provider
+Client side setup of the [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) up-provider
 
 ### Using with viem
 
