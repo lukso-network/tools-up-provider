@@ -335,6 +335,7 @@ interface UPProviderEndpointEvents {
 }
 interface UPProviderEndpoint {
   on<T extends EventEmitter.EventNames<UPProviderEndpointEvents>>(event: T, fn: EventEmitter.EventListener<UPProviderEndpointEvents, T>, context?: any): this
+  off<T extends EventEmitter.EventNames<UPProviderEndpointEvents>>(event: T, fn: EventEmitter.EventListener<UPProviderEndpointEvents, T>, context?: any): this
   request(message: { method: string; params: JSONRPCParams }, clientParams?: any): Promise<any>
   request(method: string | { method: string; params: JSONRPCParams }, params?: JSONRPCParams, clientParams?: any): Promise<any>
 }
@@ -344,6 +345,7 @@ type UPProviderConnectorOptions = {
   allowedAccounts: `0x${string}`[]
   contextAccounts: `0x${string}`[]
   provider: UPProviderEndpoint
+  providerAccountsChangedCallback?: (accounts: `0x${string}`[]) => void
   promise: Promise<void>
   rpcUrls: string[]
   chainId: number
@@ -470,6 +472,7 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
   close() {
     if (this._getOptions().providerHandler) {
       window.removeEventListener('message', this._getOptions().providerHandler as any)
+      this._getOptions().providerHandler = undefined
     }
   }
 
@@ -570,6 +573,11 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
     this._getOptions().promise = new Promise<void>((resolve, reject) => {
       ;(async () => {
         try {
+          const oldCallback = this._getOptions().providerAccountsChangedCallback
+          if (this._getOptions().provider && oldCallback) {
+            this._getOptions().provider?.off('accountsChanged', oldCallback)
+            this._getOptions().providerAccountsChangedCallback = undefined
+          }
           this._getOptions().provider = provider
           const newRpcUrls = Array.isArray(rpcUrls) ? rpcUrls : [rpcUrls]
           if (arrayChanged(newRpcUrls, this._getOptions().rpcUrls)) {
@@ -578,17 +586,19 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
               await item.setRpcUrls(this._getOptions().rpcUrls)
             }
           }
-          const _chainId = await this._getOptions().provider.request({
-            method: 'eth_chainId',
-            params: [],
-          })
+          const _chainId =
+            (await this._getOptions().provider?.request({
+              method: 'eth_chainId',
+              params: [],
+            })) || this._getOptions().chainId
           for (const item of this.channels.values()) {
             await item.setChainId(this._getOptions().chainId)
           }
-          const _accounts = await this._getOptions().provider.request({
-            method: 'eth_accounts',
-            params: [],
-          })
+          const _accounts =
+            (await this._getOptions().provider?.request({
+              method: 'eth_accounts',
+              params: [],
+            })) || []
           const accountsChanged = arrayChanged(this._getOptions().allowedAccounts, _accounts)
           if (accountsChanged) {
             this._getOptions().chainId = _chainId
@@ -597,7 +607,7 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
               await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
             }
           }
-          this._getOptions().provider.on('accountsChanged', async (_accounts: `0x${string}`[]) => {
+          const accountsChangedCallback = async (_accounts: `0x${string}`[]) => {
             const accountsChanged = arrayChanged(this._getOptions().allowedAccounts, _accounts)
             if (accountsChanged) {
               this._getOptions().allowedAccounts = [..._accounts]
@@ -605,7 +615,11 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
                 await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
               }
             }
-          })
+          }
+          if (this._getOptions().provider) {
+            this._getOptions().providerAccountsChangedCallback = accountsChangedCallback
+            this._getOptions().provider.on('accountsChanged', accountsChangedCallback)
+          }
           resolve()
         } catch (err) {
           reject(err)
