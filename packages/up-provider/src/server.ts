@@ -271,18 +271,20 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   }
 
   public async setupChannel(enable: boolean, accounts: `0x${string}`[], contextAccounts: `0x${string}`[], chainId: number): Promise<void> {
-    await this.setEnable(enable)
     await this.setAllowedAccounts(accounts)
     await this.setContextAccounts(contextAccounts)
     await this.setChainId(chainId)
-    this.resume() // Once the channel is setup we can unleash all the events.
+    await this.setEnable(enable)
   }
 
   public async setEnable(value: boolean): Promise<void> {
     if (value !== this.enable) {
       this.#setter(value)
       this.send('accountsChanged', cleanupAccounts(this.#getter() ? [...this.#accounts] : []))
+      this.resume() // Once the channel is setup we can unleash all the events.
       this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
+    } else {
+      this.resume() // Once the channel is setup we can unleash all the events.
     }
   }
   public set enable(value: boolean) {
