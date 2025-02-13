@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.3](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.2...up-provider-v0.3.3) (2025-02-13)
+
+
+### Bug Fixes
+
+* Check for provider being null/undefined on global provider ([4cac4f0](https://github.com/lukso-network/tools-up-provider/commit/4cac4f08e44e3b2fb9603b3050b57f2b6fd50f74))
+* Move to setEnabled for resume ([43381d8](https://github.com/lukso-network/tools-up-provider/commit/43381d810a8e7f5d52762d8ece92d10fa65d74f6))
+* resume event handling on channel after it's setup. ([2faaf34](https://github.com/lukso-network/tools-up-provider/commit/2faaf343863c38727465f1e4050b49156d198e53))
+
 ## [0.3.2](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.1...up-provider-v0.3.2) (2025-01-24)
 
 
