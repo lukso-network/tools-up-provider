@@ -275,6 +275,7 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
     await this.setAllowedAccounts(accounts)
     await this.setContextAccounts(contextAccounts)
     await this.setChainId(chainId)
+    this.resume() // Once the channel is setup we can unleash all the events.
   }
 
   public async setEnable(value: boolean): Promise<void> {
