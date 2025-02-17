@@ -849,7 +849,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
                   channel_.emit('sentTransaction', {
                     from: request.params[0]?.from,
                     to: request.params[0]?.to,
-                    value: request.params[0]?.value,
+                    value: request.params[0]?.value || BigInt(0),
                     result: response.result,
                     error: response.error,
                   })
