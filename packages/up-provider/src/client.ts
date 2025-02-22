@@ -51,6 +51,7 @@ type UPClientProviderOptions = {
   window?: Window
   clientChannel?: MessagePort
   startupPromise: Promise<void>
+  restart: () => void
   init?: {
     chainId: number
     allowedAccounts: `0x${string}`[]
@@ -139,9 +140,44 @@ interface UPClientProvider {
  */
 class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
   readonly #options: UPClientProviderOptions
+  #buffered?: Array<[keyof UPClientProviderEvents, unknown[]]> = []
   constructor(options: any) {
     super()
     this.#options = options as UPClientProviderOptions
+  }
+
+  emit<T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, ...args: EventEmitter.EventArgs<UPClientProviderEvents, T>): boolean {
+    if (this.#buffered) {
+      this.#buffered.push([event, args])
+      return false
+    }
+    return super.emit(event, ...args)
+  }
+
+  resume(delay = 0) {
+    const buffered = this.#buffered
+    if (!buffered) {
+      return
+    }
+    this.#buffered = undefined
+    setTimeout(() => {
+      while (buffered.length > 0) {
+        const val = buffered.shift()
+        if (val) {
+          const [event, args] = val
+          super.emit(event, ...(args as any))
+        }
+      }
+    }, delay)
+  }
+
+  on<T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any) {
+    this.resume(100)
+    return super.on(event, fn, context)
+  }
+  addListener<T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any) {
+    this.resume(100)
+    return super.addListener(event, fn, context)
   }
 
   private _getOptions = () => {
@@ -221,6 +257,7 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
         options.window = _up
         try {
           _up.addEventListener('close', () => {
+            options.restart()
             remote.emit('windowClosed')
           })
         } catch {
@@ -285,6 +322,10 @@ async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options
         if (popup) {
           const current = await popup.openModal(authURL.url)
           if (current) {
+            current.addEventListener('close', () => {
+              options.restart()
+              remote.emit('windowClosed')
+            })
             const up = await testWindow(current, remote, options)
             if (up) {
               return up
@@ -379,7 +420,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   let rpcUrls: string[] = []
   let startupResolve: () => void
 
-  const startupPromise = new Promise<void>(resolve => {
+  let startupPromise = new Promise<void>(resolve => {
     startupResolve = resolve
   }).then(() => {
     remote.emit('initialized')
@@ -387,9 +428,18 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
 
   const options: UPClientProviderOptions = {
     chainId: () => chainId,
+    restart: () => {},
     allowedAccounts: () => allowedAccounts,
     contextAccounts: () => contextAccounts,
     startupPromise,
+  }
+
+  options.restart = function restart() {
+    options.startupPromise = startupPromise = new Promise<void>(resolve => {
+      startupResolve = resolve
+    }).then(() => {
+      remote.emit('initialized')
+    })
   }
 
   const remote = new _UPClientProvider(options)
@@ -418,7 +468,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     window.dispatchEvent(announceEvent)
   })
 
-  const doSearch = async (client: JSONRPCClient): Promise<UPClientProvider> => {
+  const doSearch = async (client: JSONRPCClient, force = false): Promise<UPClientProvider> => {
     if (searchPromise) {
       return searchPromise
     }
@@ -519,94 +569,100 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     return activeSearchPromise
   }
 
-  const client = new JSONRPCClient(async (jsonRPCRequest: any) => {
-    await doSearch(client).then(up => {
-      options.client = client
-      return up
-    })
-
-    return new Promise((resolve, reject) => {
-      const { id, method, params } = jsonRPCRequest
-
-      pendingRequests.set(id, {
-        resolve,
-        reject,
-        sent: false,
-        id,
-        method,
-        params,
+  const allocateConnection = async () => {
+    const client = new JSONRPCClient(async (jsonRPCRequest: any) => {
+      await doSearch(client).then(up => {
+        options.client = client
+        return up
       })
 
-      options.clientChannel?.postMessage(jsonRPCRequest)
+      return new Promise((resolve, reject) => {
+        const { id, method, params } = jsonRPCRequest
+
+        pendingRequests.set(id, {
+          resolve,
+          reject,
+          sent: false,
+          id,
+          method,
+          params,
+        })
+
+        options.clientChannel?.postMessage(jsonRPCRequest)
+      })
     })
-  })
 
-  const request_ = client.request.bind(client)
+    const request_ = client.request.bind(client)
 
-  const wrapper = async (method: string, params?: unknown[]) => {
-    switch (method) {
-      case 'eth_call':
-        // Is this call is used to evaluate or simulate a transaction then we have to send it to the parent provider.
-        // Otherwise we can send it directly to a configured RPC endpoint.
-        if (rpcUrls.length > 0 && Object.keys((params?.[0] ?? {}) as Record<string, unknown>).every(key => !/^gasPrice|maxFeePerGas|maxPriorityFeePerGas|value$/.test(key))) {
-          clientLog('client direct rpc', rpcUrls, method, params)
+    const wrapper = async (method: string, params?: unknown[]) => {
+      switch (method) {
+        case 'eth_call':
+          // Is this call is used to evaluate or simulate a transaction then we have to send it to the parent provider.
+          // Otherwise we can send it directly to a configured RPC endpoint.
+          if (rpcUrls.length > 0 && Object.keys((params?.[0] ?? {}) as Record<string, unknown>).every(key => !/^gasPrice|maxFeePerGas|maxPriorityFeePerGas|value$/.test(key))) {
+            clientLog('client direct rpc', rpcUrls, method, params)
 
-          const urls = [...rpcUrls]
-          const errors = []
-          while (urls.length > 0) {
-            const url = urls.shift()
-            try {
-              if (!url) {
-                throw new Error('No RPC URL found')
-              }
-
-              const result = fetch(url, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: uuidv4(),
-                  method,
-                  params,
-                }),
-              }).then(response => {
-                if (response.ok) {
-                  return response.json()
+            const urls = [...rpcUrls]
+            const errors = []
+            while (urls.length > 0) {
+              const url = urls.shift()
+              try {
+                if (!url) {
+                  throw new Error('No RPC URL found')
                 }
-                throw new Error('Network response was not ok')
-              })
 
-              return result
-            } catch (error) {
-              // This is a real error log (maybe goes to sentry)
-              console.error('error', error)
-              errors.push(error)
+                const result = fetch(url, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: uuidv4(),
+                    method,
+                    params,
+                  }),
+                }).then(response => {
+                  if (response.ok) {
+                    return response.json()
+                  }
+                  throw new Error('Network response was not ok')
+                })
+
+                return result
+              } catch (error) {
+                // This is a real error log (maybe goes to sentry)
+                console.error('error', error)
+                errors.push(error)
+              }
             }
+            const err: any = new Error(`All RPC URLs failed: ${errors.map(e => (e as { message: string }).message).join(', ')}`)
+            err.errors = errors
+            throw err
           }
-          const err: any = new Error(`All RPC URLs failed: ${errors.map(e => (e as { message: string }).message).join(', ')}`)
-          err.errors = errors
-          throw err
-        }
+      }
+      return request_(method, params)
     }
-    return request_(method, params)
-  }
 
-  client.request = async (method: string | { method: string; params: unknown[] }, params?: unknown[]) => {
+    client.request = async (method: string | { method: string; params: unknown[] }, params?: unknown[]) => {
+      await doSearch(client)
+
+      await startupPromise
+
+      // make it compatible with old and new type RPC.
+      if (typeof method === 'string') {
+        return await wrapper(method, params)
+      }
+      const { method: _method, params: _params } = method
+      return await wrapper(_method, _params)
+    }
+
     await doSearch(client)
-
-    await startupPromise
-
-    // make it compatible with old and new type RPC.
-    if (typeof method === 'string') {
-      return await wrapper(method, params)
-    }
-    const { method: _method, params: _params } = method
-    return await wrapper(_method, _params)
   }
 
-  doSearch(client)
+  if (authURL && !(authURL as { url: string; mode: 'popup' | 'iframe' })?.url) {
+    allocateConnection()
+  }
 
   return remote
 }

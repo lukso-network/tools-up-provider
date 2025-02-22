@@ -233,6 +233,15 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
     }, delay)
   }
 
+  on<T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, fn: EventEmitter.EventListener<UPClientChannelEvents, T>, context?: any) {
+    this.resume(100)
+    return super.on(event, fn, context)
+  }
+  addListener<T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, fn: EventEmitter.EventListener<UPClientChannelEvents, T>, context?: any) {
+    this.resume(100)
+    return super.addListener(event, fn, context)
+  }
+
   public async send(method: string, params: unknown[]): Promise<void> {
     this.#serverChannel.postMessage({
       jsonrpc: '2.0',
@@ -271,20 +280,47 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   }
 
   public async setupChannel(enable: boolean, accounts: `0x${string}`[], contextAccounts: `0x${string}`[], chainId: number): Promise<void> {
-    await this.setAllowedAccounts(accounts)
-    await this.setContextAccounts(contextAccounts)
-    await this.setChainId(chainId)
-    await this.setEnable(enable)
+    serverLog('allowedAccounts', accounts)
+    const accountsChanged = arrayChanged(this.#accounts, enable ? accounts : [])
+    let sendAccountsChanged = false
+    if (accountsChanged) {
+      this.#accounts = [...(enable ? accounts : [])]
+      sendAccountsChanged = true
+    }
+    serverLog('contextAccounts', contextAccounts)
+    const contextAccountsChanged = arrayChanged(this.#contextAccounts, contextAccounts)
+    let sendContextAccountsChanged = false
+    if (contextAccountsChanged) {
+      this.#contextAccounts = [...contextAccounts]
+      sendContextAccountsChanged = true
+    }
+    let sendChainChanged = false
+    if (this.#chainId !== chainId) {
+      this.#chainId = chainId
+      sendChainChanged = true
+    }
+    if (enable !== this.enable) {
+      this.#setter(enable)
+      sendAccountsChanged = true
+    }
+    if (sendChainChanged) {
+      await this.send('chainChanged', [chainId])
+      this.emit('chainChanged', chainId)
+    }
+    if (sendContextAccountsChanged) {
+      await this.send('contextAccountsChanged', cleanupAccounts([...this.#contextAccounts]))
+    }
+    if (sendAccountsChanged) {
+      await this.send('accountsChanged', cleanupAccounts(this.#getter() ? [...this.#accounts] : []))
+      this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
+    }
   }
 
   public async setEnable(value: boolean): Promise<void> {
     if (value !== this.enable) {
       this.#setter(value)
       this.send('accountsChanged', cleanupAccounts(this.#getter() ? [...this.#accounts] : []))
-      this.resume() // Once the channel is setup we can unleash all the events.
       this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
-    } else {
-      this.resume() // Once the channel is setup we can unleash all the events.
     }
   }
   public set enable(value: boolean) {
@@ -833,7 +869,6 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
           }
           return
         }
-        serverLog('server raw', event.data)
         try {
           const request = {
             ...event.data,
@@ -841,6 +876,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
           }
           server.receive(request).then(
             response => {
+              serverLog('server response', response)
               if (response && typeof response.id === 'string') {
                 if (request.method === 'eth_sendTransaction') {
                   if (response.error) {
