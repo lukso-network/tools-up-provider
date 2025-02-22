@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.3...up-provider-v0.3.4) (2025-02-22)
+
+
+### Bug Fixes
+
+* Repair initialization timing problem. #accounts was out of sync with accounts. ([84c09fe](https://github.com/lukso-network/tools-up-provider/commit/84c09fe67cd79b1f60d3d14519727501e9cf304a))
+
 ## [0.3.3](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.2...up-provider-v0.3.3) (2025-02-13)
 
 
