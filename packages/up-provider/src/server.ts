@@ -254,10 +254,15 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   public async setAllowedAccounts(accounts: `0x${string}`[]): Promise<void> {
     serverLog('allowedAccounts', accounts)
     const accountsChanged = arrayChanged(this.#accounts, accounts)
-    if (accountsChanged && this.#getter()) {
+    if (accountsChanged) {
+      const wasEmpty = this.#accounts.length === 0
       this.#accounts = [...accounts]
-      await this.send('accountsChanged', cleanupAccounts(this.#getter() ? [...this.#accounts] : []))
-      this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
+      if (this.#getter()) {
+        await this.send('accountsChanged', cleanupAccounts([...this.#accounts]))
+        if (wasEmpty !== (this.#accounts.length === 0)) {
+          this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
+        }
+      }
     }
   }
   public set allowedAccounts(accounts: `0x${string}`[]) {
@@ -268,9 +273,9 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   }
 
   public async setContextAccounts(contextAccounts: `0x${string}`[]): Promise<void> {
-    serverLog('contextAccounts', contextAccounts)
     const accountsChanged = arrayChanged(this.#contextAccounts, contextAccounts)
     if (accountsChanged) {
+      serverLog('contextAccounts', contextAccounts)
       this.#contextAccounts = [...contextAccounts]
       await this.send('contextAccountsChanged', cleanupAccounts([...this.#contextAccounts]))
     }
@@ -280,26 +285,28 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   }
 
   public async setupChannel(enable: boolean, accounts: `0x${string}`[], contextAccounts: `0x${string}`[], chainId: number): Promise<void> {
-    serverLog('allowedAccounts', accounts)
-    const accountsChanged = arrayChanged(this.#accounts, enable ? accounts : [])
+    const accountsChanged = arrayChanged(this.#accounts, accounts)
     let sendAccountsChanged = false
     if (accountsChanged) {
-      this.#accounts = [...(enable ? accounts : [])]
-      sendAccountsChanged = true
+      serverLog('allowedAccounts', accounts)
+      this.#accounts = [...accounts]
+      sendAccountsChanged = enable
     }
-    serverLog('contextAccounts', contextAccounts)
     const contextAccountsChanged = arrayChanged(this.#contextAccounts, contextAccounts)
     let sendContextAccountsChanged = false
     if (contextAccountsChanged) {
+      serverLog('contextAccounts', contextAccounts)
       this.#contextAccounts = [...contextAccounts]
       sendContextAccountsChanged = true
     }
     let sendChainChanged = false
     if (this.#chainId !== chainId) {
+      serverLog('chainId', contextAccounts)
       this.#chainId = chainId
       sendChainChanged = true
     }
     if (enable !== this.enable) {
+      serverLog('enable', enable)
       this.#setter(enable)
       sendAccountsChanged = true
     }
@@ -520,11 +527,11 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
   }
 
   async setAllowedAccounts(accounts: `0x${string}`[]): Promise<void> {
-    const contextAccountsChanged = arrayChanged(this._getOptions().contextAccounts, accounts)
-    if (contextAccountsChanged) {
-      this._getOptions().contextAccounts = [...accounts]
+    const allowedAccountsChanged = arrayChanged(this._getOptions().allowedAccounts, accounts)
+    if (allowedAccountsChanged) {
+      this._getOptions().allowedAccounts = [...accounts]
       for (const item of this.channels.values()) {
-        await item.setContextAccounts(cleanupAccounts(this._getOptions().contextAccounts))
+        await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
       }
     }
   }
