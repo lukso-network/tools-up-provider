@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.5](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.4...up-provider-v0.3.5) (2025-02-26)
+
+
+### Bug Fixes
+
+* Cleanup further but this can wait. ([4b35555](https://github.com/lukso-network/tools-up-provider/commit/4b3555535ee3027a02193ee8e12103c047ba9438))
+* Try to fix upgrade of client. Needs a bit more testing. ([ada181d](https://github.com/lukso-network/tools-up-provider/commit/ada181dfd8edf0f0d7b5a70a4181e2fe4813c897))
+
 ## [0.3.4](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.3...up-provider-v0.3.4) (2025-02-22)
 
 
