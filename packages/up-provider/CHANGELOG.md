@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.5](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.4...up-provider-v0.3.5) (2025-02-26)
+
+
+### Bug Fixes
+
+* Cleanup further but this can wait. ([4b35555](https://github.com/lukso-network/tools-up-provider/commit/4b3555535ee3027a02193ee8e12103c047ba9438))
+* Repair initial ping. ([60a8b38](https://github.com/lukso-network/tools-up-provider/commit/60a8b3893914bb5347c4de6e7c4a3563dfceb26c))
+
 ## [0.3.4](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.3...up-provider-v0.3.4) (2025-02-22)
 
 
