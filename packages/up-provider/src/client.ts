@@ -660,7 +660,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     await doSearch(client)
   }
 
-  if (authURL && !(authURL as { url: string; mode: 'popup' | 'iframe' })?.url) {
+  if (!authURL || !(authURL as { url: string; mode: 'popup' | 'iframe' })?.url) {
     allocateConnection()
   }
 
