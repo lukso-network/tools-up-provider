@@ -301,7 +301,7 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
     }
     let sendChainChanged = false
     if (this.#chainId !== chainId) {
-      serverLog('chainId', contextAccounts)
+      serverLog('chainId', chainId)
       this.#chainId = chainId
       sendChainChanged = true
     }
@@ -702,7 +702,7 @@ function getUPProviderChannel(id: string | Window | HTMLIFrameElement | UPClient
  * @param rpcUrls rpc urls to give to the clients to locally connect for non eth_sendTransaction and so on.
  * @returns The global provider and event sing for `channelCreated` events.
  */
-function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]): UPProviderConnector {
+function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], autoEnable = false): UPProviderConnector {
   if (globalUPProvider) {
     return globalUPProvider
   }
@@ -805,8 +805,16 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
               result: accounts,
             } as JSONRPCSuccessResponse
           }
+          case 'wallet_switchEthereumChain': {
+            serverLog('short circuit response', request)
+            globalUPProvider?.setChainId(Number(params[0]?.chainId ?? options.chainId))
+            return {
+              ...request,
+              result: null,
+            } as JSONRPCSuccessResponse
+          }
           case 'eth_requestAccounts': {
-            const accounts = cleanupAccounts(enabled ? [...channel_.allowedAccounts] : [])
+            const accounts = cleanupAccounts(autoEnable || enabled ? [...channel_.allowedAccounts] : [])
             serverLog('short circuit response', request, accounts)
             channel_.emit('requestAccounts', accounts)
             return {
@@ -817,7 +825,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
           case 'eth_chainId':
             return {
               ...request,
-              result: options.chainId,
+              result: `0x${options.chainId.toString(16)}`,
             } as JSONRPCSuccessResponse
           case 'eth_accounts': {
             const accounts = cleanupAccounts(enabled ? [...channel_.allowedAccounts] : [])

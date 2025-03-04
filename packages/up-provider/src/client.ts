@@ -51,6 +51,8 @@ type UPClientProviderOptions = {
   window?: Window
   clientChannel?: MessagePort
   startupPromise: Promise<void>
+  allocateConnection: () => Promise<void>
+  isPopup?: boolean
   restart: () => void
   init?: {
     chainId: number
@@ -201,11 +203,18 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
   async request(method: { method: string; params?: JSONRPCParams }, clientParams?: any): Promise<any>
   async request(method: string, params?: JSONRPCParams, clientParams?: any): Promise<any>
   async request(_method: string | { method: string; params?: JSONRPCParams }, _params?: JSONRPCParams, _clientParams?: any): Promise<any> {
-    await this._getOptions()?.startupPromise
-    // Internally this will decode method.method and method.params if it was sent.
-    // i.e. this method is patched.
     const method = typeof _method === 'string' ? _method : _method.method
     const params = typeof _method === 'string' ? _params : _method.params
+    if (!this._getOptions()?.client) {
+      if (this._getOptions()?.isPopup && /^eth_requestAccounts|^eth_sendTransaction/.test(method)) {
+        await this._getOptions()?.allocateConnection()
+        await this._getOptions()?.startupPromise
+      }
+    } else {
+      await this._getOptions()?.startupPromise
+    }
+    // Internally this will decode method.method and method.params if it was sent.
+    // i.e. this method is patched.
     const clientParams = typeof _method === 'string' ? _clientParams : _params
     if (method === 'up_contextAccounts') {
       return this._getOptions().contextAccounts()
@@ -301,42 +310,6 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
  * @returns
  */
 async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider | undefined> {
-  if (typeof authURL === 'object' && !(authURL instanceof Window) && authURL?.url) {
-    const info = localStorage.getItem(`upProvider:info:${authURL}`)
-    if (info) {
-      const { chainId, allowedAccounts, contextAccounts, rpcUrls } = JSON.parse(info)
-      options.init = { chainId, allowedAccounts, contextAccounts, rpcUrls }
-    }
-    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-      if (authURL.mode === 'popup') {
-        const childWindow = window.open(authURL.url, 'UE Wallet', 'width=400,height=600')
-        if (childWindow) {
-          const up = await testWindow(childWindow, remote, options)
-          if (up) {
-            return up
-          }
-        }
-      }
-      if (authURL.mode === 'iframe') {
-        const popup = createWalletPopup()
-        if (popup) {
-          const current = await popup.openModal(authURL.url)
-          if (current) {
-            current.addEventListener('close', () => {
-              options.restart()
-              remote.emit('windowClosed')
-            })
-            const up = await testWindow(current, remote, options)
-            if (up) {
-              return up
-            }
-            throw new Error('No UP found')
-          }
-        }
-      }
-    }
-    return
-  }
   const current = typeof window !== 'undefined' && window instanceof Window ? window.opener || window.parent : null
   if (current) {
     const up = await testWindow(current, remote, options)
@@ -362,20 +335,69 @@ async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options
  * @returns The connected provider or throws an error.
  */
 async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider, options: UPClientProviderOptions, search = false): Promise<UPClientProvider> {
-  let up: UPClientProvider | undefined =
-    (typeof authURL === 'object' && authURL instanceof Window) || authURL == null
-      ? await testWindow(authURL, remote, options).catch(error => {
-          if (search) {
-            return undefined
+  let theWindow: UPWindowConfig = typeof authURL === 'object' && (authURL as { url?: string })?.url ? null : authURL
+  if (typeof authURL === 'object' && !(authURL instanceof Window) && authURL?.url) {
+    const info = localStorage.getItem(`upProvider:info:${authURL}`)
+    if (info) {
+      const { chainId, allowedAccounts, contextAccounts, rpcUrls } = JSON.parse(info)
+      options.init = { chainId, allowedAccounts, contextAccounts, rpcUrls }
+    }
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      if (authURL.mode === 'popup') {
+        const childWindow = window.open(authURL.url, 'UE Wallet', 'width=400,height=600')
+        if (childWindow) {
+          clientLog('popup opened')
+          await new Promise<void>(resolve => {
+            childWindow.onload = () => {
+              resolve()
+            }
+          })
+          childWindow.addEventListener('close', () => {
+            clientLog('popup closed')
+            options.restart()
+            remote.emit('windowClosed')
+          })
+          theWindow = childWindow
+        }
+      }
+      if (authURL.mode === 'iframe') {
+        const popup = createWalletPopup()
+        if (popup) {
+          const current = await popup.openModal(authURL.url)
+          if (current) {
+            clientLog('iframe opened')
+            const close = (event: MessageEvent) => {
+              if (event.data?.type === 'upProvider:modalClosed') {
+                clientLog('iframe closed')
+                options.restart()
+                remote.emit('windowClosed')
+                window.removeEventListener('message', close)
+              }
+            }
+            window.addEventListener('message', close)
+            current.addEventListener('close', () => {
+              clientLog('iframe closed')
+              options.restart()
+              remote.emit('windowClosed')
+              window.removeEventListener('message', close)
+            })
+            theWindow = current
           }
-          throw error
-        })
-      : await findUP(authURL, remote, options)
+        }
+      }
+    }
+  }
+  let up: UPClientProvider | undefined = await testWindow(theWindow as Window | undefined | null, remote, options).catch(error => {
+    if (search) {
+      return undefined
+    }
+    throw error
+  })
 
   if (search && !up) {
     let retry = 3
     while (retry > 0) {
-      let current: Window | undefined = window.opener && window.opener !== window ? window.opener : window.parent && window.parent !== window ? window.parent : undefined
+      let current: Window | undefined = theWindow || (window.opener && window.opener !== window ? window.opener : window.parent && window.parent !== window ? window.parent : undefined)
       clientLog('search', current)
       while (current) {
         up = await testWindow(current, remote, options).catch(() => undefined)
@@ -386,7 +408,7 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
           break
         }
         clientLog('current', current)
-        current = current.opener && current.opener !== current ? current.opener : current.parent && current.parent !== current ? current.parent : null
+        current = theWindow || (current.opener && current.opener !== current ? current.opener : current.parent && current.parent !== current ? current.parent : undefined)
         clientLog('next', current)
       }
       if (up) {
@@ -426,12 +448,105 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     remote.emit('initialized')
   })
 
+  const allocateConnection = async () => {
+    const client = new JSONRPCClient(async (jsonRPCRequest: any) => {
+      await doSearch(client).then(up => {
+        options.client = client
+        return up
+      })
+
+      return new Promise((resolve, reject) => {
+        const { id, method, params } = jsonRPCRequest
+
+        pendingRequests.set(id, {
+          resolve,
+          reject,
+          sent: false,
+          id,
+          method,
+          params,
+        })
+
+        options.clientChannel?.postMessage(jsonRPCRequest)
+      })
+    })
+
+    const request_ = client.request.bind(client)
+
+    const wrapper = async (method: string, params?: unknown[]) => {
+      switch (method) {
+        case 'eth_call':
+          // Is this call is used to evaluate or simulate a transaction then we have to send it to the parent provider.
+          // Otherwise we can send it directly to a configured RPC endpoint.
+          if (rpcUrls.length > 0 && Object.keys((params?.[0] ?? {}) as Record<string, unknown>).every(key => !/^gasPrice|maxFeePerGas|maxPriorityFeePerGas|value$/.test(key))) {
+            clientLog('client direct rpc', rpcUrls, method, params)
+
+            const urls = [...rpcUrls]
+            const errors = []
+            while (urls.length > 0) {
+              const url = urls.shift()
+              try {
+                if (!url) {
+                  throw new Error('No RPC URL found')
+                }
+
+                const result = fetch(url, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: uuidv4(),
+                    method,
+                    params,
+                  }),
+                }).then(response => {
+                  if (response.ok) {
+                    return response.json()
+                  }
+                  throw new Error('Network response was not ok')
+                })
+
+                return result
+              } catch (error) {
+                // This is a real error log (maybe goes to sentry)
+                console.error('error', error)
+                errors.push(error)
+              }
+            }
+            const err: any = new Error(`All RPC URLs failed: ${errors.map(e => (e as { message: string }).message).join(', ')}`)
+            err.errors = errors
+            throw err
+          }
+      }
+      return request_(method, params)
+    }
+
+    client.request = async (method: string | { method: string; params: unknown[] }, params?: unknown[]) => {
+      await doSearch(client)
+
+      await startupPromise
+
+      // make it compatible with old and new type RPC.
+      if (typeof method === 'string') {
+        return await wrapper(method, params)
+      }
+      const { method: _method, params: _params } = method
+      return await wrapper(_method, _params)
+    }
+
+    await doSearch(client)
+  }
+
   const options: UPClientProviderOptions = {
     chainId: () => chainId,
     restart: () => {},
     allowedAccounts: () => allowedAccounts,
     contextAccounts: () => contextAccounts,
     startupPromise,
+    allocateConnection,
+    isPopup: (authURL as { url?: string })?.url !== undefined,
   }
 
   options.restart = function restart() {
@@ -567,97 +682,6 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
       })
     searchPromise = activeSearchPromise
     return activeSearchPromise
-  }
-
-  const allocateConnection = async () => {
-    const client = new JSONRPCClient(async (jsonRPCRequest: any) => {
-      await doSearch(client).then(up => {
-        options.client = client
-        return up
-      })
-
-      return new Promise((resolve, reject) => {
-        const { id, method, params } = jsonRPCRequest
-
-        pendingRequests.set(id, {
-          resolve,
-          reject,
-          sent: false,
-          id,
-          method,
-          params,
-        })
-
-        options.clientChannel?.postMessage(jsonRPCRequest)
-      })
-    })
-
-    const request_ = client.request.bind(client)
-
-    const wrapper = async (method: string, params?: unknown[]) => {
-      switch (method) {
-        case 'eth_call':
-          // Is this call is used to evaluate or simulate a transaction then we have to send it to the parent provider.
-          // Otherwise we can send it directly to a configured RPC endpoint.
-          if (rpcUrls.length > 0 && Object.keys((params?.[0] ?? {}) as Record<string, unknown>).every(key => !/^gasPrice|maxFeePerGas|maxPriorityFeePerGas|value$/.test(key))) {
-            clientLog('client direct rpc', rpcUrls, method, params)
-
-            const urls = [...rpcUrls]
-            const errors = []
-            while (urls.length > 0) {
-              const url = urls.shift()
-              try {
-                if (!url) {
-                  throw new Error('No RPC URL found')
-                }
-
-                const result = fetch(url, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    id: uuidv4(),
-                    method,
-                    params,
-                  }),
-                }).then(response => {
-                  if (response.ok) {
-                    return response.json()
-                  }
-                  throw new Error('Network response was not ok')
-                })
-
-                return result
-              } catch (error) {
-                // This is a real error log (maybe goes to sentry)
-                console.error('error', error)
-                errors.push(error)
-              }
-            }
-            const err: any = new Error(`All RPC URLs failed: ${errors.map(e => (e as { message: string }).message).join(', ')}`)
-            err.errors = errors
-            throw err
-          }
-      }
-      return request_(method, params)
-    }
-
-    client.request = async (method: string | { method: string; params: unknown[] }, params?: unknown[]) => {
-      await doSearch(client)
-
-      await startupPromise
-
-      // make it compatible with old and new type RPC.
-      if (typeof method === 'string') {
-        return await wrapper(method, params)
-      }
-      const { method: _method, params: _params } = method
-      return await wrapper(_method, _params)
-    }
-
-    await doSearch(client)
   }
 
   if (!authURL || !(authURL as { url: string; mode: 'popup' | 'iframe' })?.url) {

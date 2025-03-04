@@ -1,4 +1,7 @@
+import debug from 'debug'
 import { LitElement, html, css, type PropertyDeclarations } from 'lit'
+
+const popupLog = debug('upProvider:popup')
 
 /**
  * Small lit component to work on popup.
@@ -89,6 +92,7 @@ export class ModalPopup extends LitElement {
   private reject?: (error: Error) => void
 
   async openModal(url: string): Promise<Window | null> {
+    popupLog('Open popup')
     const defer = new Promise<Window | null>((resolve, reject) => {
       this.resolve = resolve
       this.reject = reject
@@ -127,6 +131,9 @@ export class ModalPopup extends LitElement {
   closeModal() {
     this.isOpen = false
     this.iframeSrc = ''
+    popupLog('Closing popup')
+    this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }))
+    window.parent.postMessage({ type: 'upProvider:modalClosed' }, '*')
   }
 }
 
