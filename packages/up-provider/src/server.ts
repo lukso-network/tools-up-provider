@@ -6,8 +6,8 @@ import { arrayChanged, cleanupAccounts } from '.'
 
 const serverLog = debug('upProvider:server')
 interface UPClientChannelEvents {
-  connected: () => void
-  disconnected: () => void
+  connect: (args: { chainId: `0x${string}` }) => void
+  disconnect: () => void
   contextAccountsChanged: (accounts: `0x${string}`[]) => void
   accountsChanged: (accounts: `0x${string}`[]) => void
   requestAccounts: (accounts: `0x${string}`[]) => void
@@ -260,7 +260,14 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
       if (this.#getter()) {
         await this.send('accountsChanged', cleanupAccounts([...this.#accounts]))
         if (wasEmpty !== (this.#accounts.length === 0)) {
-          this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
+          if (this.#getter() && this.#accounts.length > 0) {
+            const hexChainId = `0x${this.#chainId.toString(16)}` as `0x${string}`
+            this.emit('connect', { chainId: hexChainId })
+            this.send('connect', [{ chainId: hexChainId }])
+          } else {
+            this.emit('disconnect')
+            this.send('disconnect', [])
+          }
         }
       }
     }
@@ -319,7 +326,14 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
     }
     if (sendAccountsChanged) {
       await this.send('accountsChanged', cleanupAccounts(this.#getter() ? [...this.#accounts] : []))
-      this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
+      if (this.#getter() && this.#accounts.length > 0) {
+        const hexChainId = `0x${this.#chainId.toString(16)}` as `0x${string}`
+        this.emit('connect', { chainId: hexChainId })
+        this.send('connect', [{ chainId: hexChainId }])
+      } else {
+        this.emit('disconnect')
+        this.send('disconnect', [])
+      }
     }
   }
 
@@ -327,7 +341,14 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
     if (value !== this.enable) {
       this.#setter(value)
       this.send('accountsChanged', cleanupAccounts(this.#getter() ? [...this.#accounts] : []))
-      this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
+      if (this.#getter() && this.#accounts.length > 0) {
+        const hexChainId = `0x${this.#chainId.toString(16)}` as `0x${string}`
+        this.emit('connect', { chainId: hexChainId })
+        this.send('connect', [{ chainId: hexChainId }])
+      } else {
+        this.emit('disconnect')
+        this.send('disconnect', [])
+      }
     }
   }
   public set enable(value: boolean) {
@@ -953,7 +974,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
         contextAccounts: options.contextAccounts,
         rpcUrls: options.rpcUrls,
       })
-      channel_.emit('connected')
+      channel_.emit('connect', { chainId: `0x${options.chainId.toString(16)}` })
     }
   }
   window.addEventListener('message', options.providerHandler)

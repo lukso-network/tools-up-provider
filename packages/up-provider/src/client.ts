@@ -6,6 +6,7 @@ import image from './UniversalProfiles_Apps_Logo_96px.svg'
 import { create } from 'domain'
 import { createWalletPopup } from './popup'
 import { cleanupAccounts } from './index'
+import { start } from 'repl'
 
 const clientLog = debug('upProvider:client')
 
@@ -25,11 +26,17 @@ type UPWindowConfig =
   | {
       url: string
       mode: 'popup' | 'iframe'
+      name?: string
+      get: () => Promise<Record<string, unknown>>
+      set: (value: Record<string, unknown>) => Promise<void>
+      preventRegistration?: boolean
+      rdns?: string
+      icon?: string
     }
 
 interface UPClientProviderEvents {
-  connected: () => void
-  disconnected: () => void
+  connect: (args: { chainId: `0x${string}` }) => void
+  disconnect: () => void
   accountsChanged: (accounts: `0x${string}`[]) => void
   contextAccountsChanged: (contextAccounts: `0x${string}`[]) => void
   requestAccounts: (accounts: `0x${string}`[]) => void
@@ -51,6 +58,7 @@ type UPClientProviderOptions = {
   window?: Window
   clientChannel?: MessagePort
   startupPromise: Promise<void>
+  preStartupPromise: Promise<void>
   allocateConnection: () => Promise<void>
   isPopup?: boolean
   restart: () => void
@@ -203,15 +211,17 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
   async request(method: { method: string; params?: JSONRPCParams }, clientParams?: any): Promise<any>
   async request(method: string, params?: JSONRPCParams, clientParams?: any): Promise<any>
   async request(_method: string | { method: string; params?: JSONRPCParams }, _params?: JSONRPCParams, _clientParams?: any): Promise<any> {
+    await this._getOptions()?.preStartupPromise
     const method = typeof _method === 'string' ? _method : _method.method
     const params = typeof _method === 'string' ? _params : _method.params
     if (!this._getOptions()?.client) {
-      if (this._getOptions()?.isPopup && /^eth_requestAccounts|^eth_sendTransaction/.test(method)) {
+      if (this._getOptions()?.isPopup && (method === 'eth_sendTransaction' || method === 'eth_requestAccounts' || (method === 'eth_accounts' && this.accounts?.length === 0))) {
         await this._getOptions()?.allocateConnection()
         await this._getOptions()?.startupPromise
       }
-    } else {
-      await this._getOptions()?.startupPromise
+      if (method === 'eth_accounts' || method === 'eth_requestAccounts') {
+        return this.accounts
+      }
     }
     // Internally this will decode method.method and method.params if it was sent.
     // i.e. this method is patched.
@@ -441,7 +451,12 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   let contextAccounts: `0x${string}`[] = []
   let rpcUrls: string[] = []
   let startupResolve: () => void
-
+  let preStartupResolve: () => void = () => {}
+  const preStartupPromise = new Promise<void>(resolve => {
+    preStartupResolve = resolve
+  }).then(() => {
+    clientLog('pre startup resolved')
+  })
   let startupPromise = new Promise<void>(resolve => {
     startupResolve = resolve
   }).then(() => {
@@ -474,7 +489,16 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     const request_ = client.request.bind(client)
 
     const wrapper = async (method: string, params?: unknown[]) => {
+      await preStartupPromise
       switch (method) {
+        case 'eth_accounts':
+        case 'eth_requestAccounts':
+          if (allowedAccounts.length > 0) {
+            return allowedAccounts
+          }
+          break
+        case 'eth_chainId':
+          return `0x${chainId.toString(16)}`
         case 'eth_call':
           // Is this call is used to evaluate or simulate a transaction then we have to send it to the parent provider.
           // Otherwise we can send it directly to a configured RPC endpoint.
@@ -545,6 +569,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     allowedAccounts: () => allowedAccounts,
     contextAccounts: () => contextAccounts,
     startupPromise,
+    preStartupPromise,
     allocateConnection,
     isPopup: (authURL as { url?: string })?.url !== undefined,
   }
@@ -560,29 +585,56 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   const remote = new _UPClientProvider(options)
   let searchPromise: Promise<UPClientProvider> | null
 
-  // Register the provider as a wallet by announcing it.
-  const providerInfo = {
-    uuid: uuidv4(),
-    name: 'UE Universal Profile',
-    icon: `data:image/svg+xml,${encodeURIComponent(image)}`,
-    rdns: 'dev.lukso.auth',
+  if (authURL && !(authURL instanceof Window)) {
+    authURL.get().then((value: Record<string, unknown>) => {
+      if (value.chainId) {
+        chainId = value.chainId as number
+      }
+      if (value.allowedAccounts) {
+        allowedAccounts = value.allowedAccounts as `0x${string}`[]
+      }
+      if (value.rpcUrls) {
+        rpcUrls = value.rpcUrls as string[]
+      }
+      preStartupResolve()
+    })
+  } else {
+    preStartupResolve()
   }
+  if (authURL instanceof Window || !authURL || !authURL?.preventRegistration) {
+    // Register the provider as a wallet by announcing it.
+    const info = authURL && !(authURL instanceof Window) ? authURL : undefined
+    const providerInfo = {
+      uuid: uuidv4(),
+      name: info?.name || 'UE Universal Profile',
+      icon: info?.icon || `data:image/svg+xml,${encodeURIComponent(image)}`,
+      rdns: info?.rdns || 'dev.lukso.auth',
+    }
 
-  // Announce event.
-  const announceEvent = new CustomEvent('eip6963:announceProvider', {
-    detail: Object.freeze({ info: providerInfo, provider: remote }),
-  })
+    // Announce event.
+    const announceEvent = new CustomEvent('eip6963:announceProvider', {
+      detail: Object.freeze({ info: providerInfo, provider: remote }),
+    })
 
-  // The Wallet dispatches an announce event which is heard by
-  // the DApp code that had run earlier
-  window.dispatchEvent(announceEvent)
-
-  // The Wallet listens to the request events which may be
-  // dispatched later and re-dispatches the `EIP6963AnnounceProviderEvent`
-  window.addEventListener('eip6963:requestProvider', () => {
+    // The Wallet dispatches an announce event which is heard by
+    // the DApp code that had run earlier
     window.dispatchEvent(announceEvent)
-  })
 
+    // The Wallet listens to the request events which may be
+    // dispatched later and re-dispatches the `EIP6963AnnounceProviderEvent`
+    window.addEventListener('eip6963:requestProvider', () => {
+      window.dispatchEvent(announceEvent)
+    })
+  }
+  const persist = () => {
+    if (authURL && !(authURL instanceof Window)) {
+      authURL.set({
+        chainId,
+        allowedAccounts,
+        rpcUrls,
+      })
+    }
+  }
   const doSearch = async (client: JSONRPCClient, force = false): Promise<UPClientProvider> => {
     if (searchPromise) {
       return searchPromise
@@ -602,6 +654,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
           | undefined = options.init
         if (init) {
           ;({ chainId, allowedAccounts, contextAccounts, rpcUrls } = init || {})
+          persist()
         }
         options.clientChannel?.addEventListener('message', event => {
           const fn = startupResolve
@@ -615,6 +668,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
             switch (response.method) {
               case 'chainChanged':
                 chainId = response.params[0]
+                persist()
                 up.emit('chainChanged', chainId)
                 return
               case 'contextAccountsChanged':
@@ -627,6 +681,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                 return
               case 'accountsChanged':
                 allowedAccounts = response.params
+                persist()
                 up.emit(
                   'accountsChanged',
                   // Cleanup wrong null or undefined.
@@ -635,7 +690,14 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                 return
               case 'rpcUrlsChanged':
                 rpcUrls = response.params
+                persist()
                 up.emit('rpcUrls', rpcUrls)
+                return
+              case 'connect':
+                up.emit('connect', response.params[0])
+                return
+              case 'disconnect':
+                up.emit('disconnect')
                 return
             }
             const item = pendingRequests.get(response.id)
