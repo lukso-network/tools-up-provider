@@ -531,7 +531,7 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
     if (allowedAccountsChanged) {
       this._getOptions().allowedAccounts = [...accounts]
       for (const item of this.channels.values()) {
-        await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
+        await item.setAllowedAccounts(item.enable ? cleanupAccounts(this._getOptions().allowedAccounts) : [])
       }
     }
   }
@@ -862,15 +862,17 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
           const destination = channel_.element || channel_.window || null
           if (destination != null) {
             ;(destination as any).upChannel = channel_
+            const detail = {
+              channel: channel_,
+              chainId: options.chainId,
+              allowedAccounts: channel_.enable ? options.allowedAccounts : [],
+              contextAccounts: options.contextAccounts,
+              rpcUrls: options.rpcUrls,
+              enable: channel_.enable,
+            }
+            serverLog('channel receipt', detail)
             const event = new CustomEvent('up-channel-connected', {
-              detail: {
-                channel: channel_,
-                chainId: options.chainId,
-                allowedAccounts: options.allowedAccounts,
-                contextAccounts: options.contextAccounts,
-                rpcUrls: options.rpcUrls,
-                enable: channel_.enable,
-              },
+              detail,
             })
             destination.dispatchEvent(event)
           }
@@ -939,7 +941,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
       serverChannel?.postMessage({
         type: 'upProvider:windowInitialize',
         chainId: options.chainId,
-        allowedAccounts: options.allowedAccounts,
+        allowedAccounts: enabled ? options.allowedAccounts : [],
         contextAccounts: options.contextAccounts,
         rpcUrls: options.rpcUrls,
       })
