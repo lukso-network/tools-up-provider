@@ -53,6 +53,8 @@ interface UPClientProviderEvents {
 type UPClientProviderOptions = {
   client?: JSONRPCClient
   chainId: () => number
+  switchChainId: (chainId: number) => void
+  connectEmitted: boolean
   allowedAccounts: () => `0x${string}`[]
   contextAccounts: () => `0x${string}`[]
   window?: Window
@@ -182,11 +184,11 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
   }
 
   on<T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any) {
-    this.resume(100)
+    this.resume(500)
     return super.on(event, fn, context)
   }
   addListener<T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any) {
-    this.resume(100)
+    this.resume(500)
     return super.addListener(event, fn, context)
   }
 
@@ -219,9 +221,27 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
         await this._getOptions()?.allocateConnection()
         await this._getOptions()?.startupPromise
       }
-      if (method === 'eth_accounts' || method === 'eth_requestAccounts') {
+      if (method === 'eth_requestAccounts' || method === 'eth_accounts') {
+        if (this.chainId && this.accounts.length > 0) {
+          if (!this._getOptions()?.connectEmitted) {
+            this.emit('connect', { chainId: `0x${this.chainId.toString(16)}` })
+            this._getOptions().connectEmitted = true
+          }
+        } else {
+          this._getOptions().connectEmitted = false
+        }
         return this.accounts
       }
+    }
+    if (method === 'eth_chainId') {
+      return `0x${this.chainId.toString(16)}`
+    }
+    if (method === 'wallet_switchEthereumChain') {
+      this._getOptions().switchChainId(Number(params?.[0]?.chainId))
+      return `0x${this.chainId.toString(16)}`
+    }
+    if (method === 'eth_accounts') {
+      return this.accounts
     }
     // Internally this will decode method.method and method.params if it was sent.
     // i.e. this method is patched.
@@ -497,6 +517,15 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
             return allowedAccounts
           }
           break
+        case 'wallet_switchEthereumChain': {
+          const { chainId: _chainId } = params?.[0] as { chainId: number | `0x${string}` }
+          if (_chainId) {
+            chainId = Number(_chainId)
+            persist()
+            remote.emit('chainChanged', chainId)
+          }
+          return `0x${chainId.toString(16)}`
+        }
         case 'eth_chainId':
           return `0x${chainId.toString(16)}`
         case 'eth_call':
@@ -565,7 +594,13 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
 
   const options: UPClientProviderOptions = {
     chainId: () => chainId,
+    switchChainId: (_chainId: number) => {
+      chainId = _chainId
+      persist()
+      remote.emit('chainChanged', chainId)
+    },
     restart: () => {},
+    connectEmitted: false,
     allowedAccounts: () => allowedAccounts,
     contextAccounts: () => contextAccounts,
     startupPromise,
@@ -697,6 +732,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                 up.emit('connect', response.params[0])
                 return
               case 'disconnect':
+                options.connectEmitted = false
                 up.emit('disconnect')
                 return
             }
