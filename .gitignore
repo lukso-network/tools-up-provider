@@ -25,6 +25,7 @@ tmp
 *.njsproj
 *.sln
 *.sw?
+*.tgz
 
 # Yarn
 .pnp.*

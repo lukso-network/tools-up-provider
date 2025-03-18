@@ -577,6 +577,32 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     }
 
     client.request = async (method: string | { method: string; params: unknown[] }, params?: unknown[]) => {
+      const methodName = typeof method === 'string' ? method : method.method
+      switch (methodName) {
+        case 'wallet_revokePermissions':
+          // This is a special case for revoke permissions.
+          if ((allowedAccounts?.length ?? 0) > 0) {
+            allowedAccounts = []
+            persist()
+            remote.emit(
+              'accountsChanged',
+              // Cleanup wrong null or undefined.
+              cleanupAccounts(allowedAccounts)
+            )
+          }
+          if ((contextAccounts?.length ?? 0) > 0) {
+            contextAccounts = []
+            persist()
+            remote.emit(
+              'contextAccountsChanged',
+              // Cleanup wrong null or undefined.
+              cleanupAccounts(contextAccounts)
+            )
+          }
+          remote.emit('disconnect')
+          return null
+      }
+
       await doSearch(client)
 
       await startupPromise
@@ -707,21 +733,25 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                 up.emit('chainChanged', chainId)
                 return
               case 'contextAccountsChanged':
-                contextAccounts = response.params
-                up.emit(
-                  'contextAccountsChanged',
-                  // Cleanup wrong null or undefined.
-                  cleanupAccounts(contextAccounts)
-                )
+                if ((contextAccounts?.length ?? 0) !== (response.params?.length ?? 0) || contextAccounts?.some((account, index) => account !== response.params[index])) {
+                  contextAccounts = response.params
+                  up.emit(
+                    'contextAccountsChanged',
+                    // Cleanup wrong null or undefined.
+                    cleanupAccounts(contextAccounts)
+                  )
+                }
                 return
               case 'accountsChanged':
-                allowedAccounts = response.params
-                persist()
-                up.emit(
-                  'accountsChanged',
-                  // Cleanup wrong null or undefined.
-                  cleanupAccounts(allowedAccounts)
-                )
+                if ((allowedAccounts?.length ?? 0) !== (response.params?.length ?? 0) || allowedAccounts?.some((account, index) => account !== response.params[index])) {
+                  allowedAccounts = response.params
+                  persist()
+                  up.emit(
+                    'accountsChanged',
+                    // Cleanup wrong null or undefined.
+                    cleanupAccounts(allowedAccounts)
+                  )
+                }
                 return
               case 'rpcUrlsChanged':
                 rpcUrls = response.params
@@ -733,6 +763,24 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                 return
               case 'disconnect':
                 options.connectEmitted = false
+                if ((allowedAccounts?.length ?? 0) > 0) {
+                  allowedAccounts = []
+                  persist()
+                  up.emit(
+                    'accountsChanged',
+                    // Cleanup wrong null or undefined.
+                    cleanupAccounts(allowedAccounts)
+                  )
+                }
+                if ((contextAccounts?.length ?? 0) > 0) {
+                  contextAccounts = []
+                  persist()
+                  up.emit(
+                    'contextAccountsChanged',
+                    // Cleanup wrong null or undefined.
+                    cleanupAccounts(contextAccounts)
+                  )
+                }
                 up.emit('disconnect')
                 return
             }
