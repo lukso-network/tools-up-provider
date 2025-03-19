@@ -1,7 +1,7 @@
 import debug from 'debug'
 import EventEmitter3, { type EventEmitter } from 'eventemitter3'
 import { JSONRPCClient, type JSONRPCParams } from 'json-rpc-2.0'
-import { v4 as uuidv4 } from 'uuid'
+import { v5 as uuidv5, v4 as uuidv4 } from 'uuid'
 import image from './UniversalProfiles_Apps_Logo_96px.svg'
 import { create } from 'domain'
 import { createWalletPopup } from './popup'
@@ -665,11 +665,13 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   if (authURL instanceof Window || !authURL || !authURL?.preventRegistration) {
     // Register the provider as a wallet by announcing it.
     const info = authURL && !(authURL instanceof Window) ? authURL : undefined
+    const rdns = info?.rdns || 'dev.lukso.auth'
+    const dns = rdns.split('.').reverse().join('.')
     const providerInfo = {
-      uuid: uuidv4(),
+      uuid: uuidv5(dns, uuidv5.DNS),
       name: info?.name || 'UE Universal Profile',
       icon: info?.icon || `data:image/svg+xml,${encodeURIComponent(image)}`,
-      rdns: info?.rdns || 'dev.lukso.auth',
+      rdns,
     }
 
     // Announce event.
