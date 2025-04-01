@@ -274,10 +274,11 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
  * @returns The provider if it successfully connected or throws an error.
  */
 async function testWindow(up: Window | undefined | null, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider> {
-  const _up = up || (typeof window !== 'undefined' ? window : undefined)
+  const _up = up || (typeof window !== 'undefined' ? window.parent : undefined)
   if (!_up) {
     throw new Error('No UP found')
   }
+  clientLog('test window', _up, up)
   return new Promise<UPClientProvider>((resolve, reject) => {
     let timeout: number | NodeJS.Timeout = 0
     const channel = new MessageChannel()
@@ -342,6 +343,7 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
 async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider | undefined> {
   const current = typeof window !== 'undefined' && window instanceof Window ? window.opener || window.parent : null
   if (current) {
+    clientLog('finding', current, typeof window !== 'undefined' ? window : undefined)
     const up = await testWindow(current, remote, options)
     if (up) {
       return up
