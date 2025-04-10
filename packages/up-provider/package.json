@@ -32,6 +32,24 @@
       "import": "./dist/index.mjs",
       "default": "./dist/index.global.js"
     },
+    "./popup": {
+      "types": "./dist/popup.d.ts",
+      "require": "./dist/popup.js",
+      "import": "./dist/popup.mjs",
+      "default": "./dist/popup.global.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "require": "./dist/server.js",
+      "import": "./dist/server.mjs",
+      "default": "./dist/server.global.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "require": "./dist/client.js",
+      "import": "./dist/client.mjs",
+      "default": "./dist/client.global.js"
+    },
     "./src/*": "./src/*"
   },
   "types": "./dist/index.d.ts",
