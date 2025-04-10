@@ -653,13 +653,17 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
               await item.setRpcUrls(this._getOptions().rpcUrls)
             }
           }
-          const _chainId =
+          const _chainId = Number(
             (await this._getOptions().provider?.request({
               method: 'eth_chainId',
               params: [],
             })) || this._getOptions().chainId
-          for (const item of this.channels.values()) {
-            await item.setChainId(this._getOptions().chainId)
+          )
+          if (_chainId !== this._getOptions().chainId) {
+            this._getOptions().chainId = _chainId
+            for (const item of this.channels.values()) {
+              await item.setChainId(this._getOptions().chainId)
+            }
           }
           const _accounts =
             (await this._getOptions().provider?.request({
@@ -668,7 +672,6 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
             })) || []
           const accountsChanged = arrayChanged(this._getOptions().allowedAccounts, _accounts)
           if (accountsChanged) {
-            this._getOptions().chainId = _chainId
             this._getOptions().allowedAccounts = [..._accounts]
             for (const item of this.channels.values()) {
               await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
