@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
+    "build:deploy": "pnpm build && cd packages/up-provider && pnpm pack && mv lukso-*.tgz ../.. && cd ../.. && cp lukso-*.tgz ../service-auth-simple && mv lukso-*.tgz ../universalprofile-test-dapp",
     "dev": "turbo dev --cache=local:r,remote:r --continue",
     "lint": "biome check .",
     "lint:fix": "biome check . --apply",
