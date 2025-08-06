@@ -64,8 +64,10 @@ export class ModalPopup extends LitElement {
 
   isOpen = false
   iframeSrc = ''
+  contentWindow: Window | undefined
 
-  private iframeElement: HTMLIFrameElement | null | undefined
+  private iframeElement: HTMLIFrameElement | undefined
+  private promise: Promise<Window> | undefined
 
   render() {
     return html`
@@ -80,6 +82,7 @@ export class ModalPopup extends LitElement {
 
   handleIframeLoad = () => {
     const { contentWindow } = (this.iframeElement || {}) as HTMLIFrameElement
+    this.contentWindow = contentWindow || undefined
     this.resolve?.(contentWindow)
   }
 
@@ -91,19 +94,30 @@ export class ModalPopup extends LitElement {
   private resolve?: (window: Window | null) => void
   private reject?: (error: Error) => void
 
-  async openModal(url: string): Promise<Window | null> {
-    popupLog('Open popup')
-    const defer = new Promise<Window | null>((resolve, reject) => {
+  async createModal(): Promise<{ isNew: boolean; window: Window }> {
+    if (this.promise) {
+      popupLog('Reusing popup')
+      return this.promise.then(window => ({
+        isNew: false,
+        window,
+      }))
+    }
+    popupLog('Constructing popup')
+    this.promise = new Promise<Window | null>((resolve, reject) => {
       this.resolve = resolve
       this.reject = reject
+    }).then((window: Window | null) => {
+      if (!window) {
+        throw new Error('Failed to create popup window')
+      }
+      return window
     })
-    this.iframeSrc = url
-    this.isOpen = true
-
-    if (this.iframeElement) {
-      this.iframeElement.src = url
-    }
-    return defer
+    return this.promise.then(window => {
+      return {
+        isNew: true,
+        window,
+      }
+    })
   }
 
   firstUpdated() {
@@ -124,8 +138,15 @@ export class ModalPopup extends LitElement {
     if (this.iframeElement) {
       this.iframeElement.removeEventListener('load', this.handleIframeLoad)
       this.iframeElement.removeEventListener('error', this.handleIframeError)
-      this.iframeElement = null
+      this.iframeElement = undefined
     }
+  }
+
+  openModal() {
+    this.isOpen = true
+    popupLog('Opening popup')
+    this.dispatchEvent(new CustomEvent('open', { bubbles: true, composed: true }))
+    window.parent.postMessage({ type: 'upProvider:modalOpened' }, '*')
   }
 
   closeModal() {
@@ -135,21 +156,45 @@ export class ModalPopup extends LitElement {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }))
     window.parent.postMessage({ type: 'upProvider:modalClosed' }, '*')
   }
+
+  destroyModal() {
+    this.contentWindow = undefined
+    this.closeModal()
+    this.remove()
+    popupLog('Destroying popup')
+    this.dispatchEvent(new CustomEvent('destroy', { bubbles: true, composed: true }))
+  }
 }
 
-export function createWalletPopup(): ModalPopup | null {
+export async function createWalletPopup(_url: string): Promise<{ popup: ModalPopup; isNew: boolean }> {
   if (typeof window === 'undefined' || typeof document === 'undefined' || typeof customElements === 'undefined') {
-    return null
+    throw new Error('This function can only be called in a browser environment.')
   }
+  const url = new URL(_url)
+  const key = `up-wallet-popup-${url.hostname.replace(/\./g, '-')}${url.pathname.split('/').join('-')}`
   // Manually register the custom element
   if (!customElements.get('up-wallet-popup')) {
     customElements.define('up-wallet-popup', ModalPopup)
   }
-  const existingPopup: ModalPopup | null = (document.querySelector('up-wallet-popup') || null) as ModalPopup | null
+  const existingPopup: ModalPopup | null = (document.querySelector(`#${key}`) || null) as ModalPopup | null
   if (existingPopup) {
-    return existingPopup
+    return { isNew: false, popup: existingPopup }
   }
+  popupLog('Instantiating new popup')
   const popup = document.createElement('up-wallet-popup') as ModalPopup
+  popup.id = key
+  const urlAttr = document.createAttribute('iframeSrc')
+  urlAttr.value = _url
+  popup.attributes.setNamedItem(urlAttr)
   document.body.appendChild(popup)
   return popup
+    .createModal()
+    .then(({ isNew }) => {
+      return { isNew, popup }
+    })
+    .catch(error => {
+      popupLog('Error creating popup:', error)
+      popup.destroyModal()
+      throw error
+    })
 }

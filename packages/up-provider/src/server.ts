@@ -387,8 +387,12 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
 
   public close() {
     const el: any = this.element || this.window
-    if (el.upChannel === this) {
-      el.upChannel = undefined
+    try {
+      if (el.upChannel === this) {
+        el.upChannel = undefined
+      }
+    } catch {
+      // ignore
     }
     this.#serverChannel.close()
   }
@@ -594,9 +598,28 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
     if (typeof _id === 'string') {
       return this._getChannels().get(_id) || null
     }
+
+    // Special handling when running inside an iframe and looking up parent window
+    // Do this BEFORE any property access that might fail on cross-origin objects
+    if (window.parent !== window && _id === window.parent) {
+      serverLog('getChannel: Looking up parent window channel')
+      // Check if we already have a channel for the parent window
+      for (const item of this._getChannels().values()) {
+        // For parent window, we can't compare directly due to cross-origin
+        // Instead, check if this is our special parent window channel
+        if (item.window === window.parent) {
+          return item
+        }
+      }
+      // No existing channel for parent window
+      return null
+    }
+
+    // Now safe to check if it's a UPClientChannel (only for non-parent windows)
     if ('element' in (_id as any) || 'window' in (_id as any)) {
       _id = (_id as UPClientChannel).element || (_id as UPClientChannel).window
     }
+
     for (const item of this._getChannels().values()) {
       if (item.window === _id || item.element === _id) {
         return item
@@ -747,20 +770,54 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
 
   // Server handler to accept new client provider connections
   options.providerHandler = (event: MessageEvent) => {
-    if (event.data === 'upProvider:hasProvider') {
+    // Handle both regular provider requests and iframe-specific requests
+    if (event.data === 'upProvider:hasProvider' || event.data === 'upProvider:requestIframeProvider') {
+      // If we're running inside an iframe, only respond to iframe-specific requests
+      const isInIframe = window.parent !== window
+      if (isInIframe && event.data === 'upProvider:hasProvider') {
+        serverLog('Ignoring regular provider request while in iframe')
+        return
+      }
+
       let iframe: HTMLIFrameElement | null = null
+
+      // Log all iframes found
+      const allIframes = document.querySelectorAll('iframe')
+      serverLog('Found iframes:', allIframes.length)
+
+      // Try to find the iframe that sent this message
+      // For cross-origin iframes, we can't access contentWindow directly
       for (const element of document.querySelectorAll('iframe')) {
-        if (element.contentWindow === event.source) {
-          serverLog('server hasProvider', element)
-          iframe = element
-          break
+        try {
+          if (element.contentWindow === event.source) {
+            serverLog('server hasProvider - matched iframe', element)
+            iframe = element
+            break
+          }
+        } catch (e) {
+          // Cross-origin access denied - this is expected for cross-origin iframes
+          // We'll handle this case below by using the Window reference directly
+          serverLog('Cross-origin iframe detected, cannot access contentWindow for', element.src)
         }
       }
+
+      if (!iframe) {
+        serverLog('No matching iframe found, using Window reference directly')
+      }
+
       const previous = iframe ? getUPProviderChannel(iframe) : getUPProviderChannel(event.source as Window)
       let channelId: string
-      const serverChannel = event.ports[0]
+      let serverChannel = event.ports?.[0]
       const server = new JSONRPCServer()
-      let enabled = false
+      let enabled = autoEnable
+
+      // If no port was provided (cross-origin case), create our own MessageChannel
+      let createdChannel: MessageChannel | undefined
+      if (!serverChannel) {
+        serverLog('No port received, creating MessageChannel in server')
+        createdChannel = new MessageChannel()
+        serverChannel = createdChannel.port1
+      }
 
       // Server handler to forward requests to the provider
       if (previous) {
@@ -838,7 +895,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
             } as JSONRPCSuccessResponse
           }
           case 'eth_requestAccounts': {
-            const accounts = cleanupAccounts(autoEnable || enabled ? [...channel_.allowedAccounts] : [])
+            const accounts = cleanupAccounts(enabled ? [...channel_.allowedAccounts] : [])
             serverLog('short circuit response', request, accounts)
             channel_.emit('requestAccounts', accounts)
             return {
@@ -893,7 +950,13 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
           globalUPProvider?.emit('channelCreated', channel_.element || channel_.window || null, channel_)
           const destination = channel_.element || channel_.window || null
           if (destination != null) {
-            ;(destination as any).upChannel = channel_
+            let usePostMessage = false
+            try {
+              ;(destination as any).upChannel = channel_
+            } catch {
+              // Ignore
+              usePostMessage = true
+            }
             const detail = {
               channel: channel_,
               chainId: options.chainId,
@@ -906,7 +969,13 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
             const event = new CustomEvent('up-channel-connected', {
               detail,
             })
-            destination.dispatchEvent(event)
+            if (usePostMessage) {
+              ;(destination as Window)?.postMessage?.({ ...detail, channel: undefined })
+            } else {
+              try {
+                destination.dispatchEvent(event)
+              } catch {}
+            }
           }
           return
         }
@@ -970,13 +1039,24 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
       serverChannel.start()
 
       serverLog('server accept', serverChannel)
-      serverChannel?.postMessage({
+
+      const initMessage = {
         type: 'upProvider:windowInitialize',
         chainId: options.chainId,
         allowedAccounts: enabled ? options.allowedAccounts : [],
         contextAccounts: options.contextAccounts,
         rpcUrls: options.rpcUrls,
-      })
+      }
+
+      if (createdChannel) {
+        // Send the port along with the init message via postMessage
+        serverLog('Sending created port back to client')
+        ;(event.source as Window).postMessage(initMessage, event.origin, [createdChannel.port2])
+      } else {
+        // Normal flow - send via the channel
+        serverChannel?.postMessage(initMessage)
+      }
+
       channel_.emit('connect', { chainId: `0x${options.chainId.toString(16)}` })
     }
   }

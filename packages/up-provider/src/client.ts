@@ -4,7 +4,7 @@ import { JSONRPCClient, type JSONRPCParams } from 'json-rpc-2.0'
 import { v5 as uuidv5, v4 as uuidv4 } from 'uuid'
 import image from './UniversalProfiles_Apps_Logo_96px.svg'
 import { create } from 'domain'
-import { createWalletPopup } from './popup'
+import { createWalletPopup, type ModalPopup } from './popup-vanilla'
 import { cleanupAccounts } from './index'
 import { start } from 'repl'
 
@@ -60,9 +60,12 @@ type UPClientProviderOptions = {
   window?: Window
   clientChannel?: MessagePort
   startupPromise: Promise<void>
+  popup?: ModalPopup
   preStartupPromise: Promise<void>
   allocateConnection: () => Promise<void>
   isPopup?: boolean
+  isIframe?: boolean
+  loginPromise?: PromiseLike<any>
   restart: () => void
   init?: {
     chainId: number
@@ -145,6 +148,8 @@ interface UPClientProvider {
   get isConnected(): boolean
 
   get isMiniApp(): Promise<boolean>
+
+  resume(delay?: number): void
 }
 
 /**
@@ -217,21 +222,35 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
     const method = typeof _method === 'string' ? _method : _method.method
     const params = typeof _method === 'string' ? _params : _method.params
     if (!this._getOptions()?.client) {
-      if (this._getOptions()?.isPopup && (method === 'eth_sendTransaction' || method === 'eth_requestAccounts' || (method === 'eth_accounts' && this.accounts?.length === 0))) {
+      if (this._getOptions()?.isPopup && (this._getOptions().isIframe || method === 'eth_sendTransaction' || method === 'eth_requestAccounts' || (method === 'eth_accounts' && this.accounts?.length === 0))) {
         await this._getOptions()?.allocateConnection()
         await this._getOptions()?.startupPromise
       }
-      if (method === 'eth_requestAccounts' || method === 'eth_accounts') {
-        if (this.chainId && this.accounts.length > 0) {
-          if (!this._getOptions()?.connectEmitted) {
-            this.emit('connect', { chainId: `0x${this.chainId.toString(16)}` })
-            this._getOptions().connectEmitted = true
-          }
-        } else {
-          this._getOptions().connectEmitted = false
+    }
+    if (method === 'eth_requestAccounts' || method === 'wallet_requestPermissions') {
+      if (this._getOptions()?.isIframe && this._getOptions().popup && !this.accounts?.length) {
+        this._getOptions().popup?.openModal()
+        if (!this._getOptions().loginPromise) {
+          this._getOptions().loginPromise = this._getOptions()
+            .client?.request('embedded_login', ['force'], _clientParams)
+            .then(result => {
+              console.log('embedded_login', result)
+              this._getOptions().loginPromise = undefined
+            })
         }
-        return this.accounts
+        await this._getOptions().loginPromise
       }
+    }
+    if (method === 'eth_requestAccounts' || method === 'eth_accounts') {
+      if (this.chainId && this.accounts.length > 0) {
+        if (!this._getOptions()?.connectEmitted) {
+          this.emit('connect', { chainId: `0x${this.chainId.toString(16)}` })
+          this._getOptions().connectEmitted = true
+        }
+      } else {
+        this._getOptions().connectEmitted = false
+      }
+      return this.accounts
     }
     if (method === 'eth_chainId') {
       return `0x${this.chainId.toString(16)}`
@@ -293,7 +312,17 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
           clearTimeout(timeout)
           timeout = 0
         }
-        options.clientChannel = channel.port1
+
+        // Check if we received a port from the server (cross-origin case)
+        if (event.ports?.[0]) {
+          clientLog('Received MessageChannel port from server')
+          options.clientChannel = event.ports[0]
+          options.clientChannel.start()
+        } else {
+          // Use our original port (same-origin case)
+          options.clientChannel = channel.port1
+        }
+
         options.window = _up
         try {
           _up.addEventListener('close', () => {
@@ -316,11 +345,42 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
       }
     }
 
+    // Only listen on channel.port1 if we're expecting to use it (same-origin)
+    // For cross-origin, we'll receive a port from the server
     channel.port1.addEventListener('message', testFn)
     channel.port1.start()
     window.addEventListener('message', testFn)
     clientLog('client', 'send find wallet', _up)
-    _up.postMessage('upProvider:hasProvider', '*', [channel.port2])
+
+    // Check if we can access the window's origin (same-origin check)
+    let canTransferPort = false
+    try {
+      // If we can access the location, we're same-origin
+      const _ = _up.location.href
+      canTransferPort = true
+    } catch (e) {
+      // Cross-origin - can't transfer MessageChannel
+      clientLog('Cross-origin detected, will send without port')
+    }
+
+    // Use stored target origin or default to '*'
+    const targetOrigin = (options as any).targetOrigin || '*'
+    clientLog('Using target origin for postMessage:', targetOrigin)
+
+    // Determine which message to send based on the context
+    let messageType = 'upProvider:hasProvider'
+
+    // If we're looking for an iframe provider (authURL has a URL), use a specific message
+    if ((options as any).isIframe) {
+      messageType = 'upProvider:requestIframeProvider'
+    }
+
+    // Send with or without port based on origin check
+    if (canTransferPort) {
+      _up.postMessage(messageType, targetOrigin, [channel.port2])
+    } else {
+      _up.postMessage(messageType, targetOrigin)
+    }
 
     timeout = setTimeout(() => {
       timeout = 0
@@ -368,6 +428,17 @@ async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options
  */
 async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider, options: UPClientProviderOptions, search = false): Promise<UPClientProvider> {
   let theWindow: UPWindowConfig = typeof authURL === 'object' && (authURL as { url?: string })?.url ? null : authURL
+
+  // Store the target origin in options for use in testWindow
+  if (typeof authURL === 'object' && !(authURL instanceof Window) && authURL?.url) {
+    try {
+      ;(options as any).targetOrigin = new URL(authURL.url).origin
+      clientLog('Stored target origin:', (options as any).targetOrigin)
+    } catch (e) {
+      clientLog('Could not determine target origin from URL')
+    }
+  }
+
   if (typeof authURL === 'object' && !(authURL instanceof Window) && authURL?.url) {
     const info = localStorage.getItem(`upProvider:info:${authURL}`)
     if (info) {
@@ -393,27 +464,55 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
         }
       }
       if (authURL.mode === 'iframe') {
-        const popup = createWalletPopup()
-        if (popup) {
-          const current = await popup.openModal(authURL.url)
+        const { popup, isNew } = await createWalletPopup(authURL.url)
+        if (popup && isNew) {
+          options.popup = popup
+          const { window: current } = await popup.createModal()
           if (current) {
             clientLog('iframe opened')
             const close = (event: MessageEvent) => {
               if (event.data?.type === 'upProvider:modalClosed') {
-                clientLog('iframe closed')
-                options.restart()
-                remote.emit('windowClosed')
+                clientLog('iframe modal closed (keeping connection)')
+                // Don't restart or emit windowClosed - just hide the modal
+                // The connection should persist
                 window.removeEventListener('message', close)
               }
             }
             window.addEventListener('message', close)
-            current.addEventListener('close', () => {
-              clientLog('iframe closed')
-              options.restart()
-              remote.emit('windowClosed')
-              window.removeEventListener('message', close)
-            })
+            try {
+              current.addEventListener('close', () => {
+                clientLog('iframe window actually closed')
+                // Only restart if the window is actually destroyed, not just hidden
+                options.restart()
+                remote.emit('windowClosed')
+                window.removeEventListener('message', close)
+              })
+            } catch {
+              // Ignore - cross-origin frames might not allow this
+            }
             theWindow = current
+
+            // For iframe mode, wait for the iframe to announce it's ready
+            if (authURL.mode === 'iframe' && current) {
+              clientLog('Waiting for iframe to announce ready')
+              await new Promise<void>(resolve => {
+                const readyHandler = (event: MessageEvent) => {
+                  if (event.data === 'upProvider:ready' && event.source === current) {
+                    clientLog('Iframe announced ready')
+                    window.removeEventListener('message', readyHandler)
+                    resolve()
+                  }
+                }
+                window.addEventListener('message', readyHandler)
+
+                // Timeout after 5 seconds
+                setTimeout(() => {
+                  window.removeEventListener('message', readyHandler)
+                  clientLog('Timeout waiting for iframe ready')
+                  resolve()
+                }, 5000)
+              })
+            }
           }
         }
       }
@@ -635,6 +734,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     preStartupPromise,
     allocateConnection,
     isPopup: (authURL as { url?: string })?.url !== undefined,
+    isIframe: (authURL as { mode?: string })?.mode === 'iframe',
   }
 
   options.restart = function restart() {
@@ -722,11 +822,6 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
           persist()
         }
         options.clientChannel?.addEventListener('message', event => {
-          const fn = startupResolve
-          if (fn) {
-            fn()
-          }
-          startupResolve = () => {}
           try {
             const response = event.data
             clientLog('client', response)
@@ -815,6 +910,11 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
         })
         options.clientChannel?.start()
         options.client = client
+        const fn = startupResolve
+        if (fn) {
+          fn()
+        }
+        startupResolve = () => {}
         return up
       })
       .catch(error => {
@@ -834,7 +934,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     return activeSearchPromise
   }
 
-  if (!authURL || !(authURL as { url: string; mode: 'popup' | 'iframe' })?.url) {
+  if (!authURL || !(authURL as { url: string; mode: 'popup' | 'iframe' })?.url || (authURL as { url: string; mode: 'popup' | 'iframe' })?.mode === 'iframe') {
     allocateConnection()
   }
 

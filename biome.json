@@ -1,31 +1,37 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "suspicious": {
-        "noExplicitAny": "off"
-      },
-      "style": {
-        "useNodejsImportProtocol": "off"
-      }
-    }
-  },
-  "formatter": {
-    "enabled": false,
-    "indentWidth": 2,
-    "indentStyle": "space"
-  },
-  "javascript": {
-    "formatter": {
-      "enabled": false,
-      "semicolons": "asNeeded",
-      "quoteStyle": "single",
-      "trailingCommas": "none"
-    }
-  },
-  "files": {
-    "maxSize": 1048576,
-    "ignore": ["api-extractor.json", "dist", "*.cjs", "docs", ".docs-json"]
-  }
+	"$schema": "https://biomejs.dev/schemas/2.1.3/schema.json",
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"suspicious": {
+				"noExplicitAny": "off"
+			},
+			"style": {
+				"useNodejsImportProtocol": "off"
+			}
+		}
+	},
+	"formatter": {
+		"enabled": false,
+		"indentWidth": 2,
+		"indentStyle": "space"
+	},
+	"javascript": {
+		"formatter": {
+			"enabled": false,
+			"semicolons": "asNeeded",
+			"quoteStyle": "single",
+			"trailingCommas": "none"
+		}
+	},
+	"files": {
+		"maxSize": 1048576,
+		"includes": [
+			"!api-extractor.json",
+			"!dist",
+			"!**/*.cjs",
+			"!docs",
+			"!.docs-json"
+		]
+	}
 }
