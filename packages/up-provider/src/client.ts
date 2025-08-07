@@ -4,14 +4,17 @@ import { JSONRPCClient, type JSONRPCParams } from 'json-rpc-2.0'
 import { v5 as uuidv5, v4 as uuidv4 } from 'uuid'
 import image from './UniversalProfiles_Apps_Logo_96px.svg'
 import { create } from 'domain'
-import { createWalletPopup, type ModalPopup } from './popup-vanilla'
+import { createWalletPopup, type ModalPopup } from './popup'
 import { cleanupAccounts } from './index'
 import { start } from 'repl'
 
 const clientLog = debug('upProvider:client')
 
+// Unique identifier for UP Provider JSONRPC messages
+const UP_PROVIDER_JSONRPC_TYPE = 'upProvider:jsonrpc' as const
+
 type RequestQueueItem = {
-  resolve: () => unknown
+  resolve: (value: void | PromiseLike<void>) => unknown
   reject: (reason: unknown) => unknown
   sent: boolean
   id: number | string
@@ -218,6 +221,7 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
   async request(method: { method: string; params?: JSONRPCParams }, clientParams?: any): Promise<any>
   async request(method: string, params?: JSONRPCParams, clientParams?: any): Promise<any>
   async request(_method: string | { method: string; params?: JSONRPCParams }, _params?: JSONRPCParams, _clientParams?: any): Promise<any> {
+    // Remove debug log now that connection is working
     await this._getOptions()?.preStartupPromise
     const method = typeof _method === 'string' ? _method : _method.method
     const params = typeof _method === 'string' ? _params : _method.params
@@ -233,9 +237,8 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
         if (!this._getOptions().loginPromise) {
           this._getOptions().loginPromise = this._getOptions()
             .client?.request('embedded_login', ['force'], _clientParams)
-            .then(result => {
+            .then((result: unknown) => {
               console.log('embedded_login', result)
-              this._getOptions().loginPromise = undefined
             })
         }
         await this._getOptions().loginPromise
@@ -268,6 +271,32 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
     if (method === 'up_contextAccounts') {
       return this._getOptions().contextAccounts()
     }
+    
+    // Ensure client is allocated before making request
+    if (!this._getOptions()?.client) {
+      clientLog('Client not ready, allocating connection first')
+      await this._getOptions()?.allocateConnection()
+      await this._getOptions()?.startupPromise
+    }
+    
+    // For wallet_requestPermissions, handle the response to update accounts
+    if (method === 'wallet_requestPermissions') {
+      const result = await this._getOptions()?.client?.request(method, params, clientParams)
+      if (result && result[0]?.accounts) {
+        const newAccounts = result[0].accounts as `0x${string}`[]
+        const currentAccounts = this._getOptions()?.allowedAccounts() || []
+        
+        // Use the same comparison logic as elsewhere in the code
+        if ((currentAccounts?.length ?? 0) !== (newAccounts?.length ?? 0) || currentAccounts?.some((account, index) => account !== newAccounts[index])) {
+          // Emit the event - the actual account update will happen when we receive the accountsChanged event
+          clientLog('wallet_requestPermissions returned different accounts, expecting accountsChanged event')
+          // The server should send accountsChanged, but if not, we can emit it ourselves
+          // For now, just log it
+        }
+      }
+      return result
+    }
+    
     return this._getOptions()?.client?.request(method, params, clientParams) || null
   }
 
@@ -303,6 +332,24 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
     const channel = new MessageChannel()
 
     const testFn = (event: MessageEvent) => {
+      // Handle wrapped JSONRPC responses for cross-origin scenarios
+      if (event.data?.type === UP_PROVIDER_JSONRPC_TYPE && !options.clientChannel) {
+        const jsonrpcMessage = event.data.payload
+        if (jsonrpcMessage && typeof jsonrpcMessage.id !== 'undefined') {
+          // This is a JSONRPC response, handle it
+          const pending = pendingRequests.get(String(jsonrpcMessage.id))
+          if (pending) {
+            if (jsonrpcMessage.error) {
+              pending.reject(jsonrpcMessage.error)
+            } else {
+              pending.resolve(jsonrpcMessage.result)
+            }
+            pendingRequests.delete(String(jsonrpcMessage.id))
+          }
+        }
+        return
+      }
+
       if (event.data?.type === 'upProvider:windowInitialize') {
         const { chainId, allowedAccounts, contextAccounts, rpcUrls } = event.data
 
@@ -317,10 +364,11 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
         if (event.ports?.[0]) {
           clientLog('Received MessageChannel port from server')
           options.clientChannel = event.ports[0]
-          options.clientChannel.start()
+          // Don't start yet - will start after listener is attached in doSearch
         } else {
           // Use our original port (same-origin case)
           options.clientChannel = channel.port1
+          // Don't start yet - will start after listener is attached in doSearch
         }
 
         options.window = _up
@@ -465,52 +513,68 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
       }
       if (authURL.mode === 'iframe') {
         const { popup, isNew } = await createWalletPopup(authURL.url)
-        if (popup && isNew) {
+        if (popup) {
           options.popup = popup
           const { window: current } = await popup.createModal()
+
           if (current) {
-            clientLog('iframe opened')
-            const close = (event: MessageEvent) => {
-              if (event.data?.type === 'upProvider:modalClosed') {
-                clientLog('iframe modal closed (keeping connection)')
-                // Don't restart or emit windowClosed - just hide the modal
-                // The connection should persist
-                window.removeEventListener('message', close)
+            clientLog(isNew ? 'New iframe created' : 'Reusing existing iframe')
+
+            // Only set up event listeners for new popups
+            if (isNew) {
+              const close = (event: MessageEvent) => {
+                if (event.data?.type === 'upProvider:modalClosed') {
+                  clientLog('iframe modal closed (keeping connection)')
+                  // Don't restart or emit windowClosed - just hide the modal
+                  // The connection should persist
+                  window.removeEventListener('message', close)
+                }
+              }
+              window.addEventListener('message', close)
+              try {
+                current.addEventListener('close', () => {
+                  clientLog('iframe window actually closed')
+                  // Only restart if the window is actually destroyed, not just hidden
+                  options.restart()
+                  remote.emit('windowClosed')
+                  window.removeEventListener('message', close)
+                })
+              } catch {
+                // Ignore - cross-origin frames might not allow this
               }
             }
-            window.addEventListener('message', close)
-            try {
-              current.addEventListener('close', () => {
-                clientLog('iframe window actually closed')
-                // Only restart if the window is actually destroyed, not just hidden
-                options.restart()
-                remote.emit('windowClosed')
-                window.removeEventListener('message', close)
-              })
-            } catch {
-              // Ignore - cross-origin frames might not allow this
-            }
+
             theWindow = current
 
-            // For iframe mode, wait for the iframe to announce it's ready
-            if (authURL.mode === 'iframe' && current) {
+            // Only wait for ready message on new iframes
+            if (authURL.mode === 'iframe' && current && isNew) {
               clientLog('Waiting for iframe to announce ready')
               await new Promise<void>(resolve => {
+                let timeoutId: NodeJS.Timeout | number
+                
                 const readyHandler = (event: MessageEvent) => {
-                  if (event.data === 'upProvider:ready' && event.source === current) {
+                  // Debug logging
+                  if (event.data === 'upProvider:ready') {
+                    clientLog('Received upProvider:ready from:', event.source, 'expected:', current, 'match:', event.source === current)
+                  }
+
+                  // For cross-origin iframes, event.source might not be accessible or comparable
+                  // So just check for the message type
+                  if (event.data === 'upProvider:ready') {
                     clientLog('Iframe announced ready')
+                    clearTimeout(timeoutId)  // Clear the timeout since we got the ready message
                     window.removeEventListener('message', readyHandler)
                     resolve()
                   }
                 }
                 window.addEventListener('message', readyHandler)
 
-                // Timeout after 5 seconds
-                setTimeout(() => {
+                // Timeout after 3 seconds - this is expected if the iframe doesn't send ready
+                timeoutId = setTimeout(() => {
                   window.removeEventListener('message', readyHandler)
-                  clientLog('Timeout waiting for iframe ready')
+                  clientLog('Iframe ready timeout (proceeding anyway - this is normal)')
                   resolve()
-                }, 5000)
+                }, 3000)
               })
             }
           }
@@ -603,7 +667,28 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
           params,
         })
 
-        options.clientChannel?.postMessage(jsonRPCRequest)
+        // Debug log the request being sent
+        clientLog('Sending JSONRPC request:', method, 'id:', id, 'via:', options.clientChannel ? 'MessageChannel' : 'postMessage')
+        
+        // Check if the channel is still valid
+        if (options.clientChannel) {
+          try {
+            options.clientChannel.postMessage(jsonRPCRequest)
+          } catch (e) {
+            console.error('*** MessageChannel postMessage failed:', e)
+            // Channel might be closed, need to reconnect
+            clientLog('MessageChannel appears to be broken, may need to reconnect')
+          }
+        } else if (options.window) {
+          // For cross-origin scenarios, wrap the JSONRPC message
+          options.window.postMessage(
+            {
+              type: UP_PROVIDER_JSONRPC_TYPE,
+              payload: jsonRPCRequest,
+            },
+            (options as any).targetOrigin || '*'
+          )
+        }
       })
     })
 
@@ -738,6 +823,17 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   }
 
   options.restart = function restart() {
+    clientLog('Restarting connection - cleaning up state')
+
+    // Clean up connection state
+    options.window = undefined
+    options.clientChannel = undefined
+    options.connectEmitted = false
+    
+    // Clear the search promise so next connection will set up listeners
+    searchPromise = null
+
+    // Reset the startup promise
     options.startupPromise = startupPromise = new Promise<void>(resolve => {
       startupResolve = resolve
     }).then(() => {
@@ -821,94 +917,179 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
           ;({ chainId, allowedAccounts, contextAccounts, rpcUrls } = init || {})
           persist()
         }
-        options.clientChannel?.addEventListener('message', event => {
-          try {
-            const response = event.data
-            clientLog('client', response)
-            switch (response.method) {
-              case 'chainChanged':
-                chainId = response.params[0]
-                persist()
-                up.emit('chainChanged', chainId)
-                return
-              case 'contextAccountsChanged':
-                if ((contextAccounts?.length ?? 0) !== (response.params?.length ?? 0) || contextAccounts?.some((account, index) => account !== response.params[index])) {
-                  contextAccounts = response.params
-                  up.emit(
-                    'contextAccountsChanged',
-                    // Cleanup wrong null or undefined.
-                    cleanupAccounts(contextAccounts)
-                  )
-                }
-                return
-              case 'accountsChanged':
-                if ((allowedAccounts?.length ?? 0) !== (response.params?.length ?? 0) || allowedAccounts?.some((account, index) => account !== response.params[index])) {
-                  allowedAccounts = response.params
+        // Set up message listener based on connection type
+        if (options.clientChannel) {
+          // MessageChannel-based communication (same-origin)
+          clientLog('Setting up MessageChannel listener, channel exists:', !!options.clientChannel)
+          options.clientChannel.addEventListener('message', event => {
+            try {
+              const response = event.data
+              clientLog('client MessageChannel message received:', response)
+              switch (response.method) {
+                case 'chainChanged':
+                  chainId = response.params[0]
                   persist()
-                  up.emit(
-                    'accountsChanged',
-                    // Cleanup wrong null or undefined.
-                    cleanupAccounts(allowedAccounts)
-                  )
-                }
-                return
-              case 'rpcUrlsChanged':
-                rpcUrls = response.params
-                persist()
-                up.emit('rpcUrls', rpcUrls)
-                return
-              case 'connect':
-                up.emit('connect', response.params[0])
-                return
-              case 'disconnect':
-                options.connectEmitted = false
-                if ((allowedAccounts?.length ?? 0) > 0) {
-                  allowedAccounts = []
+                  up.emit('chainChanged', chainId)
+                  return
+                case 'contextAccountsChanged':
+                  if ((contextAccounts?.length ?? 0) !== (response.params?.length ?? 0) || contextAccounts?.some((account, index) => account !== response.params[index])) {
+                    contextAccounts = response.params
+                    up.emit(
+                      'contextAccountsChanged',
+                      // Cleanup wrong null or undefined.
+                      cleanupAccounts(contextAccounts)
+                    )
+                  }
+                  return
+                case 'accountsChanged':
+                  if ((allowedAccounts?.length ?? 0) !== (response.params?.length ?? 0) || allowedAccounts?.some((account, index) => account !== response.params[index])) {
+                    allowedAccounts = response.params
+                    persist()
+                    up.emit(
+                      'accountsChanged',
+                      // Cleanup wrong null or undefined.
+                      cleanupAccounts(allowedAccounts)
+                    )
+                  }
+                  return
+                case 'rpcUrlsChanged':
+                  rpcUrls = response.params
                   persist()
-                  up.emit(
-                    'accountsChanged',
-                    // Cleanup wrong null or undefined.
-                    cleanupAccounts(allowedAccounts)
-                  )
-                }
-                if ((contextAccounts?.length ?? 0) > 0) {
-                  contextAccounts = []
-                  persist()
-                  up.emit(
-                    'contextAccountsChanged',
-                    // Cleanup wrong null or undefined.
-                    cleanupAccounts(contextAccounts)
-                  )
-                }
-                up.emit('disconnect')
-                return
-            }
-            const item = pendingRequests.get(response.id)
-            if (response.id && item) {
-              const { resolve, reject } = item
-              if (response.result) {
-                client.receive({ ...response, id: item.id }) // Handle the response
-                resolve() // Resolve the corresponding promise
-              } else if (response.error) {
-                const { error: _error, jsonrpc } = response
-                const { method, params, id } = item
-                const error = {
-                  ..._error,
-                  message: `${_error.message} ${JSON.stringify(method)}(${JSON.stringify(params)})`,
-                }
-                // This is a real error log (maybe goes to sentry)
-                console.error('error', { error, method, params, id, jsonrpc })
-                client.receive({ ...response, id: item.id })
-                reject(error) // Reject in case of error
+                  up.emit('rpcUrls', rpcUrls)
+                  return
+                case 'connect':
+                  up.emit('connect', response.params[0])
+                  return
+                case 'disconnect':
+                  options.connectEmitted = false
+                  options.loginPromise = undefined
+                  if ((allowedAccounts?.length ?? 0) > 0) {
+                    allowedAccounts = []
+                    persist()
+                    up.emit(
+                      'accountsChanged',
+                      // Cleanup wrong null or undefined.
+                      cleanupAccounts(allowedAccounts)
+                    )
+                  }
+                  if ((contextAccounts?.length ?? 0) > 0) {
+                    contextAccounts = []
+                    persist()
+                    up.emit(
+                      'contextAccountsChanged',
+                      // Cleanup wrong null or undefined.
+                      cleanupAccounts(contextAccounts)
+                    )
+                  }
+                  up.emit('disconnect')
+                  return
               }
-              pendingRequests.delete(response.id) // Clean up the request
+              const item = pendingRequests.get(response.id)
+              clientLog('Response received for id:', response.id, 'found in pending:', !!item, 'method was:', item?.method)
+              if (response.id && item) {
+                const { resolve, reject } = item
+                if (response.result) {
+                  client.receive({ ...response, id: item.id }) // Handle the response
+                  resolve() // Resolve the corresponding promise
+                } else if (response.error) {
+                  const { error: _error, jsonrpc } = response
+                  const { method, params, id } = item
+                  const error = {
+                    ..._error,
+                    message: `${_error.message} ${JSON.stringify(method)}(${JSON.stringify(params)})`,
+                  }
+                  // This is a real error log (maybe goes to sentry)
+                  console.error('error', { error, method, params, id, jsonrpc })
+                  client.receive({ ...response, id: item.id })
+                  reject(error) // Reject in case of error
+                }
+                pendingRequests.delete(response.id) // Clean up the request
+              }
+            } catch (error) {
+              // This is a real error log (maybe goes to sentry)
+              console.error('Error parsing JSON RPC response', error, event)
             }
-          } catch (error) {
-            // This is a real error log (maybe goes to sentry)
-            console.error('Error parsing JSON RPC response', error, event)
+          })
+          clientLog('Starting MessageChannel listener')
+          options.clientChannel.start()
+        } else if (options.window) {
+          // Window postMessage-based communication (cross-origin)
+          const messageHandler = (event: MessageEvent) => {
+            // Only handle wrapped JSONRPC messages
+            if (event.data?.type === UP_PROVIDER_JSONRPC_TYPE) {
+              try {
+                const response = event.data.payload
+                clientLog('client (cross-origin)', response)
+                switch (response.method) {
+                  case 'chainChanged':
+                    chainId = response.params[0]
+                    persist()
+                    up.emit('chainChanged', chainId)
+                    return
+                  case 'contextAccountsChanged':
+                    if ((contextAccounts?.length ?? 0) !== (response.params?.length ?? 0) || contextAccounts?.some((account: any, index: number) => account !== response.params[index])) {
+                      contextAccounts = response.params
+                      up.emit('contextAccountsChanged', cleanupAccounts(contextAccounts))
+                    }
+                    return
+                  case 'accountsChanged':
+                    if ((allowedAccounts?.length ?? 0) !== (response.params?.length ?? 0) || allowedAccounts?.some((account: any, index: number) => account !== response.params[index])) {
+                      allowedAccounts = response.params
+                      persist()
+                      up.emit('accountsChanged', cleanupAccounts(allowedAccounts))
+                    }
+                    return
+                  case 'rpcUrlsChanged':
+                    rpcUrls = response.params
+                    persist()
+                    up.emit('rpcUrls', rpcUrls)
+                    return
+                  case 'connect':
+                    up.emit('connect', response.params[0])
+                    return
+                  case 'disconnect':
+                    options.connectEmitted = false
+                    if ((allowedAccounts?.length ?? 0) > 0) {
+                      allowedAccounts = []
+                      persist()
+                      up.emit('accountsChanged', cleanupAccounts(allowedAccounts))
+                    }
+                    if ((contextAccounts?.length ?? 0) > 0) {
+                      contextAccounts = []
+                      persist()
+                      up.emit('contextAccountsChanged', cleanupAccounts(contextAccounts))
+                    }
+                    up.emit('disconnect')
+                    return
+                }
+                // Handle regular JSONRPC responses
+                const item = pendingRequests.get(response.id)
+                clientLog('Cross-origin response received for id:', response.id, 'found in pending:', !!item, 'method was:', item?.method)
+                if (response.id && item) {
+                  const { resolve, reject } = item
+                  if (response.result !== undefined) {
+                    client.receive({ ...response, id: item.id })
+                    resolve()
+                  } else if (response.error) {
+                    const { error: _error, jsonrpc } = response
+                    const { method, params, id } = item
+                    const error = {
+                      ..._error,
+                      message: `${_error.message} ${JSON.stringify(method)}(${JSON.stringify(params)})`,
+                    }
+                    console.error('error', { error, method, params, id, jsonrpc })
+                    client.receive({ ...response, id: item.id })
+                    reject(error)
+                  }
+                  pendingRequests.delete(response.id)
+                }
+              } catch (error) {
+                console.error('Error parsing wrapped JSON RPC response', error, event.data)
+              }
+            }
           }
-        })
-        options.clientChannel?.start()
+          window.addEventListener('message', messageHandler)
+        }
         options.client = client
         const fn = startupResolve
         if (fn) {

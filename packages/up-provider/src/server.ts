@@ -5,6 +5,9 @@ import { v4 as uuidv4 } from 'uuid'
 import { arrayChanged, cleanupAccounts } from '.'
 
 const serverLog = debug('upProvider:server')
+
+// Unique identifier for UP Provider JSONRPC messages
+const UP_PROVIDER_JSONRPC_TYPE = 'upProvider:jsonrpc' as const
 interface UPClientChannelEvents {
   connect: (args: { chainId: `0x${string}` }) => void
   disconnect: () => void
@@ -187,6 +190,8 @@ interface UPClientChannel {
    * Close the channel
    */
   close(): void
+
+  _serverChannel: MessagePort
 }
 
 class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements UPClientChannel {
@@ -195,7 +200,7 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   #chainId = 0
   #rpcUrls: string[] = []
   #buffered?: Array<[keyof UPClientChannelEvents, unknown[]]> = []
-  #serverChannel: MessagePort
+  _serverChannel: MessagePort
   #server: JSONRPCServer
   readonly #getter: () => boolean
   readonly #setter: (value: boolean) => void
@@ -204,7 +209,7 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
     super()
     this.#getter = getter
     this.#setter = setter
-    this.#serverChannel = serverChannel
+    this._serverChannel = serverChannel
     this.#server = server
   }
 
@@ -243,12 +248,16 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   }
 
   public async send(method: string, params: unknown[]): Promise<void> {
-    this.#serverChannel.postMessage({
+    const message = {
       jsonrpc: '2.0',
       id: uuidv4(),
       method,
       params,
-    })
+    }
+
+    // For now, always use MessagePort directly since serverChannel is typed as MessagePort
+    // If we need to support window.postMessage in the future, we'll need to update the type
+    this._serverChannel.postMessage(message)
   }
 
   public async setAllowedAccounts(accounts: `0x${string}`[]): Promise<void> {
@@ -394,7 +403,7 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
     } catch {
       // ignore
     }
-    this.#serverChannel.close()
+    this._serverChannel.close()
   }
 }
 
@@ -770,6 +779,24 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
 
   // Server handler to accept new client provider connections
   options.providerHandler = (event: MessageEvent) => {
+    // Handle wrapped JSONRPC messages for cross-origin scenarios (when no channel exists yet)
+    if (event.data?.type === UP_PROVIDER_JSONRPC_TYPE) {
+      // Find the channel for this source
+      for (const [channelId, channel] of channels) {
+        if (channel.window === event.source) {
+          // Forward to the channel's handler
+          const serverChannel = (channel as any)._serverChannel
+          if (serverChannel) {
+            // Unwrap and send through the channel
+            serverChannel.postMessage(event.data.payload)
+          }
+          return
+        }
+      }
+      // If no channel found, ignore (might be from another wallet)
+      return
+    }
+
     // Handle both regular provider requests and iframe-specific requests
     if (event.data === 'upProvider:hasProvider' || event.data === 'upProvider:requestIframeProvider') {
       // If we're running inside an iframe, only respond to iframe-specific requests
@@ -945,6 +972,17 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
       })
 
       const channelHandler = (event: MessageEvent) => {
+        // Handle wrapped JSONRPC messages for cross-origin scenarios
+        if (event.data?.type === UP_PROVIDER_JSONRPC_TYPE) {
+          const jsonrpcMessage = event.data.payload
+          if (jsonrpcMessage) {
+            // Process as regular JSONRPC message
+            const mockEvent = { data: jsonrpcMessage }
+            channelHandler(mockEvent as MessageEvent)
+          }
+          return
+        }
+
         if (event.data.type === 'upProvider:windowInitialized') {
           serverLog('channel created', event.data.type, event.data)
           globalUPProvider?.emit('channelCreated', channel_.element || channel_.window || null, channel_)
@@ -1000,14 +1038,63 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
                     error: response.error,
                   })
                 }
+
+                // Handle wallet_requestPermissions response for popup/iframe modes
+                if (request.method === 'wallet_requestPermissions' && response.result) {
+                  // Only update accounts automatically for iframe/popup modes
+                  const isIframeOrPopup = channel_.element !== null || (channel_.window && channel_.window !== window)
+
+                  if (isIframeOrPopup) {
+                    const permissions = response.result[0]
+                    if (permissions?.accounts) {
+                      const newAccounts = permissions.accounts as `0x${string}`[]
+                      const currentAccounts = channel_.allowedAccounts
+
+                      // Check if accounts changed using same logic as elsewhere
+                      if ((currentAccounts?.length ?? 0) !== (newAccounts?.length ?? 0) || currentAccounts?.some((account, index) => account !== newAccounts[index])) {
+                        serverLog('wallet_requestPermissions returned new accounts, updating and sending accountsChanged', {
+                          enabled,
+                          isIframeOrPopup,
+                          newAccounts,
+                          currentAccounts,
+                        })
+                        // Update the accounts - this will trigger accountsChanged event
+                        channel_.setAllowedAccounts(newAccounts)
+                      }
+                    }
+                  }
+                }
                 if (!response.id.startsWith(`${channelId}:`)) {
                   console.error(`Invalid response id ${response.id} on channel ${channelId}`)
                   return
                 }
-                serverChannel?.postMessage({
+                // Check if we need to wrap the response for cross-origin
+                const responseMessage = {
                   ...response,
                   id: JSON.parse(response.id.replace(`${channelId}:`, '')),
-                })
+                }
+
+                // Check if this is a cross-origin scenario where we can't use MessageChannel
+                // We should use MessageChannel if we have serverChannel, regardless of window comparison
+                const needsWrapping = !serverChannel && channel_.window
+                if (needsWrapping && channel_.window) {
+                  // Wrap and send via window.postMessage
+                  channel_.window.postMessage(
+                    {
+                      type: UP_PROVIDER_JSONRPC_TYPE,
+                      payload: responseMessage,
+                    },
+                    '*'
+                  )
+                } else {
+                  // Use MessageChannel
+                  serverLog('Sending response via MessageChannel, serverChannel exists:', !!serverChannel, 'responseMessage:', responseMessage)
+                  if (serverChannel) {
+                    serverChannel.postMessage(responseMessage)
+                  } else {
+                    console.error('serverChannel is null/undefined, cannot send response!')
+                  }
+                }
               }
             },
             (error: any) => {
@@ -1022,10 +1109,27 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
                   error,
                 })
               }
-              serverChannel?.postMessage({
+              const errorMessage = {
                 error,
                 id: JSON.parse(request.id.replace(`${channelId}:`, '')),
-              })
+              }
+
+              // Check if this is a cross-origin scenario where we can't use MessageChannel
+              // We should use MessageChannel if we have serverChannel, regardless of window comparison
+              const needsWrapping = !serverChannel && channel_.window
+              if (needsWrapping && channel_.window) {
+                // Wrap and send via window.postMessage
+                channel_.window.postMessage(
+                  {
+                    type: UP_PROVIDER_JSONRPC_TYPE,
+                    payload: errorMessage,
+                  },
+                  '*'
+                )
+              } else {
+                // Use MessageChannel
+                serverChannel?.postMessage(errorMessage)
+              }
             }
           )
         } catch (error) {
