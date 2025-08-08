@@ -19,13 +19,13 @@ class VanillaModalPopup implements ModalPopup {
   private promise?: Promise<Window>
   private resolve?: (window: Window) => void
   private reject?: (error: Error) => void
-  
+
   isOpen = false
   contentWindow?: Window
 
   constructor(iframeSrc: string, id: string) {
     this.iframeSrc = iframeSrc
-    
+
     // Create modal structure
     this.modalElement = document.createElement('div')
     this.modalElement.id = id
@@ -36,11 +36,11 @@ class VanillaModalPopup implements ModalPopup {
         <iframe src="about:blank"></iframe>
       </div>
     `
-    
+
     // Get references
     this.closeButton = this.modalElement.querySelector('.up-close-button')!
     this.iframeElement = this.modalElement.querySelector('iframe')!
-    
+
     // Bind events
     this.closeButton.addEventListener('click', () => this.closeModal())
     // this.modalElement.addEventListener('click', (e) => {
@@ -48,10 +48,10 @@ class VanillaModalPopup implements ModalPopup {
     //     this.closeModal()
     //   }
     // })
-    
+
     this.iframeElement.addEventListener('load', this.handleIframeLoad)
     this.iframeElement.addEventListener('error', this.handleIframeError)
-    
+
     // Add styles if not already present
     if (!document.getElementById('up-modal-styles')) {
       const style = document.createElement('style')
@@ -116,7 +116,7 @@ class VanillaModalPopup implements ModalPopup {
       `
       document.head.appendChild(style)
     }
-    
+
     // Add to DOM
     document.body.appendChild(this.modalElement)
   }
@@ -135,7 +135,7 @@ class VanillaModalPopup implements ModalPopup {
 
   async createModal(): Promise<{ isNew: boolean; window: Window }> {
     popupLog('createModal called, has promise:', !!this.promise, 'iframe src:', this.iframeSrc)
-    
+
     if (this.promise) {
       popupLog('Reusing existing popup promise')
       return this.promise.then(window => ({
@@ -143,27 +143,26 @@ class VanillaModalPopup implements ModalPopup {
         window,
       }))
     }
-    
+
     popupLog('Creating new popup promise')
-    
+
     this.promise = new Promise<Window>((resolve, reject) => {
       this.resolve = resolve
       this.reject = reject
-      
+
       // Set the iframe src first
       if (this.iframeSrc) {
         this.iframeElement.src = this.iframeSrc
       }
-      
+
       // Auto-open in debug mode after iframe src is set
-      const debugMode = window.location.search.includes('debug=true') || 
-                       localStorage.getItem('upProvider:debug') === 'true'
+      const debugMode = window.location.search.includes('debug=true') || localStorage.getItem('upProvider:debug') === 'true'
       if (debugMode) {
         // Delay to ensure iframe starts loading
         setTimeout(() => this.openModal(), 100)
       }
     })
-    
+
     return this.promise.then(window => ({
       isNew: true,
       window,
@@ -171,18 +170,23 @@ class VanillaModalPopup implements ModalPopup {
   }
 
   openModal() {
+    if (this.isOpen) {
+      return
+    }
     // Use requestAnimationFrame to ensure DOM is ready and styles are applied
     requestAnimationFrame(() => {
       this.isOpen = true
       this.modalElement.classList.add('show')
       popupLog('Opening popup')
-      
+
       // Dispatch custom event
-      this.modalElement.dispatchEvent(new CustomEvent('open', { 
-        bubbles: true, 
-        composed: true 
-      }))
-      
+      this.modalElement.dispatchEvent(
+        new CustomEvent('open', {
+          bubbles: true,
+          composed: true,
+        })
+      )
+
       window.parent.postMessage({ type: 'upProvider:modalOpened' }, '*')
     })
   }
@@ -190,47 +194,50 @@ class VanillaModalPopup implements ModalPopup {
   closeModal() {
     // Log the call stack to see what's triggering the close
     popupLog('closeModal called from:', new Error().stack)
-    
+
     // Debug mode - check for debug flag in URL or localStorage
-    const debugMode = window.location.search.includes('debug=true') || 
-                     localStorage.getItem('upProvider:debug') === 'true'
-    
+    const debugMode = window.location.search.includes('debug=true') || localStorage.getItem('upProvider:debug') === 'true'
+
     if (debugMode) {
       popupLog('Debug mode: keeping modal open')
       return
     }
-    
+
     this.isOpen = false
     this.modalElement.classList.remove('show')
     popupLog('Closing popup')
-    
+
     // Dispatch custom event
-    this.modalElement.dispatchEvent(new CustomEvent('close', { 
-      bubbles: true, 
-      composed: true 
-    }))
-    
+    this.modalElement.dispatchEvent(
+      new CustomEvent('close', {
+        bubbles: true,
+        composed: true,
+      })
+    )
+
     window.parent.postMessage({ type: 'upProvider:modalClosed' }, '*')
   }
 
   destroyModal() {
     this.contentWindow = undefined
     this.closeModal()
-    
+
     // Remove event listeners
     this.iframeElement.removeEventListener('load', this.handleIframeLoad)
     this.iframeElement.removeEventListener('error', this.handleIframeError)
-    
+
     // Remove from DOM
     this.modalElement.remove()
-    
+
     popupLog('Destroying popup')
-    
+
     // Dispatch custom event
-    this.modalElement.dispatchEvent(new CustomEvent('destroy', { 
-      bubbles: true, 
-      composed: true 
-    }))
+    this.modalElement.dispatchEvent(
+      new CustomEvent('destroy', {
+        bubbles: true,
+        composed: true,
+      })
+    )
   }
 }
 
@@ -238,26 +245,27 @@ export async function createWalletPopup(_url: string): Promise<{ popup: ModalPop
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     throw new Error('This function can only be called in a browser environment.')
   }
-  
+
   const url = new URL(_url)
   const key = `up-wallet-popup-${url.hostname.replace(/\./g, '-')}${url.pathname.split('/').join('-')}`
-  
+
   // Check for existing popup
   const existingElement = document.getElementById(key)
   if (existingElement && (existingElement as any)._popup) {
     return { isNew: false, popup: (existingElement as any)._popup }
   }
-  
+
   popupLog('Instantiating new popup')
   const popup = new VanillaModalPopup(_url, key)
-  
+
   // Store reference on the element for reuse
   const element = document.getElementById(key)
   if (element) {
-    (element as any)._popup = popup
+    ;(element as any)._popup = popup
   }
-  
-  return popup.createModal()
+
+  return popup
+    .createModal()
     .then(({ isNew }) => ({ isNew, popup }))
     .catch(error => {
       popupLog('Error creating popup:', error)

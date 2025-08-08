@@ -758,7 +758,7 @@ function getUPProviderChannel(id: string | Window | HTMLIFrameElement | UPClient
  * @param rpcUrls rpc urls to give to the clients to locally connect for non eth_sendTransaction and so on.
  * @returns The global provider and event sing for `channelCreated` events.
  */
-function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], autoEnable = false): UPProviderConnector {
+function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]): UPProviderConnector {
   if (globalUPProvider) {
     return globalUPProvider
   }
@@ -836,7 +836,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
       let channelId: string
       let serverChannel = event.ports?.[0]
       const server = new JSONRPCServer()
-      let enabled = autoEnable
+      let enabled = false
 
       // If no port was provided (cross-origin case), create our own MessageChannel
       let createdChannel: MessageChannel | undefined
@@ -998,10 +998,10 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
             const detail = {
               channel: channel_,
               chainId: options.chainId,
-              allowedAccounts: channel_.enable ? options.allowedAccounts : [],
+              allowedAccounts: [],
               contextAccounts: options.contextAccounts,
               rpcUrls: options.rpcUrls,
-              enable: channel_.enable,
+              enable: false,
             }
             serverLog('channel receipt', detail)
             const event = new CustomEvent('up-channel-connected', {
@@ -1147,7 +1147,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[], 
       const initMessage = {
         type: 'upProvider:windowInitialize',
         chainId: options.chainId,
-        allowedAccounts: enabled ? options.allowedAccounts : [],
+        allowedAccounts: [],
         contextAccounts: options.contextAccounts,
         rpcUrls: options.rpcUrls,
       }
