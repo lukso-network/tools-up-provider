@@ -1,5 +1,6 @@
 {
   "name": "@lukso/up-provider",
+  "version": "0.3.5-test3",
   "packageManager": "yarn@3.3.0",
   "files": [
     "dist",
@@ -56,6 +57,5 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "unpkg": "./dist/index.global.js",
-  "jsdelivr": "./dist/index.global.js",
-  "version": "0.3.5-test2"
+  "jsdelivr": "./dist/index.global.js"
 }
