@@ -232,16 +232,42 @@ class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
       }
     }
     if (method === 'eth_requestAccounts' || method === 'wallet_requestPermissions') {
-      if (this._getOptions()?.isIframe && this._getOptions().popup && !this.accounts?.length) {
+      // For wallet_requestPermissions, always show UI even if accounts exist (for account switching)
+      // For eth_requestAccounts, only show if no accounts
+      const shouldShowUI = method === 'wallet_requestPermissions' || !this.accounts?.length
+      
+      if (this._getOptions()?.isIframe && this._getOptions().popup && shouldShowUI) {
         this._getOptions().popup?.openModal()
         if (!this._getOptions().loginPromise) {
           this._getOptions().loginPromise = this._getOptions()
             .client?.request('embedded_login', ['force'], _clientParams)
             .then((result: unknown) => {
-              console.log('embedded_login', result)
+              return result
             })
         }
-        await this._getOptions().loginPromise
+        const result = await this._getOptions().loginPromise
+        
+        // For wallet_requestPermissions, format the response according to EIP-2255
+        if (method === 'wallet_requestPermissions') {
+          // embedded_login returns accounts array, format it as permissions
+          const accounts = Array.isArray(result) ? result : this.accounts
+          
+          // Close the modal after user interaction for wallet_requestPermissions
+          if (this._getOptions()?.popup) {
+            clientLog('Closing modal after wallet_requestPermissions')
+            this._getOptions()?.popup?.closeModal()
+          }
+          
+          return [{
+            parentCapability: 'eth_accounts',
+            invoker: window.location.origin,
+            caveats: [{
+              type: 'restrictReturnedAccounts',
+              value: accounts
+            }]
+          }]
+        }
+        // For eth_requestAccounts, the accounts will be returned below
       }
     }
     if (method === 'eth_requestAccounts' || method === 'eth_accounts') {
@@ -326,7 +352,6 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
   if (!_up) {
     throw new Error('No UP found')
   }
-  clientLog('test window', _up, up)
   return new Promise<UPClientProvider>((resolve, reject) => {
     let timeout: number | NodeJS.Timeout = 0
     const channel = new MessageChannel()
@@ -398,13 +423,13 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
     channel.port1.addEventListener('message', testFn)
     channel.port1.start()
     window.addEventListener('message', testFn)
-    clientLog('client', 'send find wallet', _up)
 
     // Check if we can access the window's origin (same-origin check)
     let canTransferPort = false
     try {
       // If we can access the location, we're same-origin
-      const _ = _up.location.href
+      // Check if we can access the location
+      void _up.location.href
       canTransferPort = true
     } catch (e) {
       // Cross-origin - can't transfer MessageChannel
@@ -451,7 +476,6 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
 async function findUP(authURL: UPWindowConfig, remote: UPClientProvider, options: UPClientProviderOptions): Promise<UPClientProvider | undefined> {
   const current = typeof window !== 'undefined' && window instanceof Window ? window.opener || window.parent : null
   if (current) {
-    clientLog('finding', current, typeof window !== 'undefined' ? window : undefined)
     const up = await testWindow(current, remote, options)
     if (up) {
       return up
@@ -548,7 +572,9 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
 
             // Only wait for ready message on new iframes
             if (authURL.mode === 'iframe' && current && isNew) {
-              clientLog('Waiting for iframe to announce ready')
+              clientLog('Waiting for new iframe to announce ready')
+              
+              // Wait for the iframe to announce it's ready (DOM loaded)
               await new Promise<void>(resolve => {
                 let timeoutId: NodeJS.Timeout | number
                 
@@ -576,6 +602,9 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
                   resolve()
                 }, 3000)
               })
+              
+              // Don't wait for provider initialization here - it blocks the channel setup!
+              // The provider will send accountsChanged through the channel once it's ready
             }
           }
         }
@@ -588,12 +617,12 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
     }
     throw error
   })
+  
 
   if (search && !up) {
     let retry = 3
     while (retry > 0) {
       let current: Window | undefined = theWindow || (window.opener && window.opener !== window ? window.opener : window.parent && window.parent !== window ? window.parent : undefined)
-      clientLog('search', current)
       while (current) {
         up = await testWindow(current, remote, options).catch(() => undefined)
         if (up) {
@@ -602,9 +631,7 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
         if (current === window.top) {
           break
         }
-        clientLog('current', current)
         current = theWindow || (current.opener && current.opener !== current ? current.opener : current.parent && current.parent !== current ? current.parent : undefined)
-        clientLog('next', current)
       }
       if (up) {
         break
@@ -896,7 +923,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
       })
     }
   }
-  const doSearch = async (client: JSONRPCClient, force = false): Promise<UPClientProvider> => {
+  const doSearch = async (client: JSONRPCClient): Promise<UPClientProvider> => {
     if (searchPromise) {
       return searchPromise
     }
@@ -917,6 +944,15 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
           ;({ chainId, allowedAccounts, contextAccounts, rpcUrls } = init || {})
           persist()
         }
+        
+        // If we have initial accounts from the provider initialization message, use them
+        if ((options as any).initialAccounts?.length) {
+          clientLog('Applying initial accounts from provider initialization:', (options as any).initialAccounts)
+          allowedAccounts = (options as any).initialAccounts
+          persist()
+          // Clear the temporary storage
+          delete (options as any).initialAccounts
+        }
         // Set up message listener based on connection type
         if (options.clientChannel) {
           // MessageChannel-based communication (same-origin)
@@ -925,6 +961,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
             try {
               const response = event.data
               clientLog('client MessageChannel message received:', response)
+              clientLog('Message details - method:', response?.method, 'params:', response?.params, 'id:', response?.id)
               switch (response.method) {
                 case 'chainChanged':
                   chainId = response.params[0]
@@ -942,7 +979,9 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                   }
                   return
                 case 'accountsChanged':
+                  clientLog('Received accountsChanged:', response.params)
                   if ((allowedAccounts?.length ?? 0) !== (response.params?.length ?? 0) || allowedAccounts?.some((account, index) => account !== response.params[index])) {
+                    clientLog('Updating allowedAccounts from', allowedAccounts, 'to', response.params)
                     allowedAccounts = response.params
                     persist()
                     up.emit(
@@ -956,6 +995,21 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                   rpcUrls = response.params
                   persist()
                   up.emit('rpcUrls', rpcUrls)
+                  return
+                case 'showPopup':
+                  clientLog('Received showPopup request:', response.params)
+                  if (options.popup) {
+                    const shouldShow = response.params?.[0]
+                    if (shouldShow === true) {
+                      clientLog('Opening modal popup')
+                      options.popup.openModal()
+                    } else if (shouldShow === false) {
+                      clientLog('Closing modal popup')
+                      options.popup.closeModal()
+                    }
+                  } else {
+                    clientLog('No popup available to control')
+                  }
                   return
                 case 'connect':
                   up.emit('connect', response.params[0])
@@ -1033,7 +1087,9 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                     }
                     return
                   case 'accountsChanged':
+                    clientLog('Received accountsChanged (cross-origin):', response.params)
                     if ((allowedAccounts?.length ?? 0) !== (response.params?.length ?? 0) || allowedAccounts?.some((account: any, index: number) => account !== response.params[index])) {
+                      clientLog('Updating allowedAccounts from', allowedAccounts, 'to', response.params)
                       allowedAccounts = response.params
                       persist()
                       up.emit('accountsChanged', cleanupAccounts(allowedAccounts))
@@ -1043,6 +1099,21 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
                     rpcUrls = response.params
                     persist()
                     up.emit('rpcUrls', rpcUrls)
+                    return
+                  case 'showPopup':
+                    clientLog('Received showPopup request (cross-origin):', response.params)
+                    if (options.popup) {
+                      const shouldShow = response.params?.[0]
+                      if (shouldShow === true) {
+                        clientLog('Opening modal popup')
+                        options.popup.openModal()
+                      } else if (shouldShow === false) {
+                        clientLog('Closing modal popup')
+                        options.popup.closeModal()
+                      }
+                    } else {
+                      clientLog('No popup available to control')
+                    }
                     return
                   case 'connect':
                     up.emit('connect', response.params[0])

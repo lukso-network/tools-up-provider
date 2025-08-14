@@ -187,6 +187,12 @@ interface UPClientChannel {
   setupChannel(enable: boolean, accounts: `0x${string}`[], contextAccounts: `0x${string}`[], chainId: number): Promise<void>
 
   /**
+   * Show or hide the popup/modal
+   * @param show - true to show, false to hide
+   */
+  showPopup(show: boolean): Promise<void>
+
+  /**
    * Close the channel
    */
   close(): void
@@ -392,6 +398,11 @@ class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements U
   }
   public set rpcUrls(rpcUrls: string[]) {
     this.setRpcUrls(rpcUrls)
+  }
+
+  public async showPopup(show: boolean): Promise<void> {
+    serverLog('showPopup requested:', show)
+    await this.send('showPopup', [show])
   }
 
   public close() {
@@ -669,12 +680,16 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
    * @param rpcUrls
    */
   async setupProvider(provider: any, rpcUrls: string | string[]): Promise<void> {
+    // Create a new promise that will be awaited by new connections
+    const previousPromise = this._getOptions().promise
     this._getOptions().promise = new Promise<void>((resolve, reject) => {
       ;(async () => {
         try {
+          // Wait for any previous initialization to complete
+          await previousPromise
           const oldCallback = this._getOptions().providerAccountsChangedCallback
-          if (this._getOptions().provider && oldCallback) {
-            this._getOptions().provider?.off('accountsChanged', oldCallback)
+          if (this._getOptions().provider && oldCallback && typeof this._getOptions().provider.off === 'function') {
+            this._getOptions().provider.off('accountsChanged', oldCallback)
             this._getOptions().providerAccountsChangedCallback = undefined
           }
           this._getOptions().provider = provider
@@ -718,7 +733,7 @@ class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> impl
               }
             }
           }
-          if (this._getOptions().provider) {
+          if (this._getOptions().provider && typeof this._getOptions().provider.on === 'function') {
             this._getOptions().providerAccountsChangedCallback = accountsChangedCallback
             this._getOptions().provider.on('accountsChanged', accountsChangedCallback)
           }
@@ -836,7 +851,8 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
       let channelId: string
       let serverChannel = event.ports?.[0]
       const server = new JSONRPCServer()
-      let enabled = false
+      // Enable by default for iframe/popup mode (when requestIframeProvider is used)
+      let enabled = event.data === 'upProvider:requestIframeProvider'
 
       // If no port was provided (cross-origin case), create our own MessageChannel
       let createdChannel: MessageChannel | undefined
@@ -1008,7 +1024,8 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
               detail,
             })
             if (usePostMessage) {
-              ;(destination as Window)?.postMessage?.({ ...detail, channel: undefined })
+              // Need to specify target origin for cross-origin communication
+              ;(destination as Window)?.postMessage({ ...detail, channel: undefined }, '*')
             } else {
               try {
                 destination.dispatchEvent(event)
@@ -1144,27 +1161,42 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
 
       serverLog('server accept', serverChannel)
 
-      const initMessage = {
-        type: 'upProvider:windowInitialize',
-        chainId: options.chainId,
-        allowedAccounts: [],
-        contextAccounts: options.contextAccounts,
-        rpcUrls: options.rpcUrls,
-      }
+      // Wait for provider to be fully initialized before sending windowInitialize
+      options.promise.then(() => {
+        // For iframe/popup mode (enabled=true), send the allowed accounts
+        // For extension mode (enabled=false), send empty accounts until explicitly connected
+        const initMessage = {
+          type: 'upProvider:windowInitialize',
+          chainId: options.chainId,
+          allowedAccounts: cleanupAccounts(enabled ? options.allowedAccounts : []),
+          contextAccounts: cleanupAccounts(options.contextAccounts),
+          rpcUrls: options.rpcUrls,
+        }
 
-      if (createdChannel) {
-        // Send the port along with the init message via postMessage
-        serverLog('Sending created port back to client')
-        ;(event.source as Window).postMessage(initMessage, event.origin, [createdChannel.port2])
-      } else {
-        // Normal flow - send via the channel
-        serverChannel?.postMessage(initMessage)
-      }
+        serverLog('Sending windowInitialize after provider ready', initMessage)
 
-      channel_.emit('connect', { chainId: `0x${options.chainId.toString(16)}` })
+        if (createdChannel) {
+          // Send the port along with the init message via postMessage
+          serverLog('Sending created port back to client')
+          ;(event.source as Window).postMessage(initMessage, event.origin, [createdChannel.port2])
+        } else {
+          // Normal flow - send via the channel
+          serverChannel?.postMessage(initMessage)
+        }
+
+        if (enabled && options.allowedAccounts.length > 0) {
+          channel_.emit('connect', { chainId: `0x${options.chainId.toString(16)}` })
+        }
+      })
     }
   }
   window.addEventListener('message', options.providerHandler)
+
+  // If provider was passed, set it up after handler is registered
+  if (provider) {
+    globalUPProvider.setupProvider(provider, rpcUrls || []).catch(console.error)
+  }
+
   return globalUPProvider
 }
 
