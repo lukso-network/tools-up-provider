@@ -33,7 +33,7 @@ class VanillaModalPopup implements ModalPopup {
     this.modalElement.innerHTML = `
       <div class="up-modal-content">
         <span class="up-close-button">&times;</span>
-        <iframe src="about:blank" allow="publickey-credentials-get"></iframe>
+        <iframe src="about:blank" allow="publickey-credentials-get; publickey-credentials-create"></iframe>
       </div>
     `
 
