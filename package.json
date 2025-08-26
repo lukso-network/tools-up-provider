@@ -14,7 +14,7 @@
     "gendocs": "turbo run docs && typedoc --githubPages --entryPointStrategy merge ./.docs-json/*.json -out docs"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.2.0",
+    "@biomejs/biome": "^2.2.2",
     "@types/node": "^24.3.0",
     "@types/node-fetch": "^2.6.13",
     "cross-env": "^10.0.0",
@@ -23,7 +23,7 @@
     "source-map-support": "^0.5.21",
     "tsup": "^8.5.0",
     "turbo": "^2.5.6",
-    "zx": "^8.8.0"
+    "zx": "^8.8.1"
   },
   "packageManager": "pnpm@9.15.4",
   "workspaces": [
@@ -33,8 +33,8 @@
   ],
   "dependencies": {
     "lit": "^3.3.1",
-    "typedoc": "^0.28.10",
-    "wrangler": "^4.30.0"
+    "typedoc": "^0.28.11",
+    "wrangler": "^4.32.0"
   },
   "version": "1.0.0"
 }

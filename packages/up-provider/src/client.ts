@@ -156,187 +156,194 @@ interface UPClientProvider {
 }
 
 /**
- * Internal class for UPClientProvider.
+ * Internal factory function for UPClientProvider to use closure-based private variables.
  */
-class _UPClientProvider extends EventEmitter3<UPClientProviderEvents> {
-  readonly #options: UPClientProviderOptions
-  #buffered?: Array<[keyof UPClientProviderEvents, unknown[]]> = []
-  constructor(options: any) {
-    super()
-    this.#options = options as UPClientProviderOptions
-  }
-
-  emit<T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, ...args: EventEmitter.EventArgs<UPClientProviderEvents, T>): boolean {
-    if (this.#buffered) {
-      this.#buffered.push([event, args])
-      return false
-    }
-    return super.emit(event, ...args)
-  }
-
-  resume(delay = 0) {
-    const buffered = this.#buffered
-    if (!buffered) {
-      return
-    }
-    this.#buffered = undefined
-    setTimeout(() => {
-      while (buffered.length > 0) {
-        const val = buffered.shift()
-        if (val) {
-          const [event, args] = val
-          super.emit(event, ...(args as any))
-        }
+function createUPClientProvider(options: UPClientProviderOptions) {
+  let bufferedEvents: Array<[keyof UPClientProviderEvents, unknown[]]> | undefined = []
+  
+  const emitter = new EventEmitter3<UPClientProviderEvents>()
+  
+  const provider: UPClientProvider = {
+    get isUPClientProvider(): boolean {
+      return true
+    },
+    
+    eventNames: () => emitter.eventNames(),
+    listeners: <T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T) => emitter.listeners(event),
+    listenerCount: (event: EventEmitter.EventNames<UPClientProviderEvents>) => emitter.listenerCount(event),
+    
+    emit: <T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, ...args: EventEmitter.EventArgs<UPClientProviderEvents, T>): boolean => {
+      if (bufferedEvents) {
+        bufferedEvents.push([event, args])
+        return false
       }
-    }, delay)
-  }
-
-  on<T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any) {
-    this.resume(500)
-    return super.on(event, fn, context)
-  }
-  addListener<T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any) {
-    this.resume(500)
-    return super.addListener(event, fn, context)
-  }
-
-  private _getOptions = () => {
-    return this.#options
-  }
-
-  get isUPClientProvider(): boolean {
-    return true
-  }
-
-  get isConnected(): boolean {
-    return this._getOptions().allowedAccounts().length > 0
-  }
-
-  get isMiniApp(): Promise<boolean> {
-    return this._getOptions()
-      ?.startupPromise.catch(() => false)
-      .then(() => true)
-  }
-
-  async request(method: { method: string; params?: JSONRPCParams }, clientParams?: any): Promise<any>
-  async request(method: string, params?: JSONRPCParams, clientParams?: any): Promise<any>
-  async request(_method: string | { method: string; params?: JSONRPCParams }, _params?: JSONRPCParams, _clientParams?: any): Promise<any> {
-    // Remove debug log now that connection is working
-    await this._getOptions()?.preStartupPromise
-    const method = typeof _method === 'string' ? _method : _method.method
-    const params = typeof _method === 'string' ? _params : _method.params
-    if (!this._getOptions()?.client) {
-      if (this._getOptions()?.isPopup && (this._getOptions().isIframe || method === 'eth_sendTransaction' || method === 'eth_requestAccounts' || (method === 'eth_accounts' && this.accounts?.length === 0))) {
-        await this._getOptions()?.allocateConnection()
-        await this._getOptions()?.startupPromise
+      return emitter.emit(event, ...args)
+    },
+    
+    on: <T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any) => {
+      provider.resume(500)
+      emitter.on(event, fn, context)
+      return provider
+    },
+    
+    addListener: <T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any) => {
+      provider.resume(500)
+      emitter.addListener(event, fn, context)
+      return provider
+    },
+    
+    once: <T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any) => {
+      emitter.once(event, fn, context)
+      return provider
+    },
+    
+    removeListener: <T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn?: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any, once?: boolean) => {
+      emitter.removeListener(event, fn, context, once)
+      return provider
+    },
+    
+    off: <T extends EventEmitter.EventNames<UPClientProviderEvents>>(event: T, fn?: EventEmitter.EventListener<UPClientProviderEvents, T>, context?: any, once?: boolean) => {
+      emitter.off(event, fn, context, once)
+      return provider
+    },
+    
+    removeAllListeners: (event?: EventEmitter.EventNames<UPClientProviderEvents>) => {
+      emitter.removeAllListeners(event)
+      return provider
+    },
+    
+    resume: (delay = 0) => {
+      const buffered = bufferedEvents
+      if (!buffered) {
+        return
       }
-    }
-    if (method === 'eth_requestAccounts' || method === 'wallet_requestPermissions') {
-      // For wallet_requestPermissions, always show UI even if accounts exist (for account switching)
-      // For eth_requestAccounts, only show if no accounts
-      const shouldShowUI = method === 'wallet_requestPermissions' || !this.accounts?.length
-      
-      if (this._getOptions()?.isIframe && this._getOptions().popup && shouldShowUI) {
-        this._getOptions().popup?.openModal()
-        if (!this._getOptions().loginPromise) {
-          this._getOptions().loginPromise = this._getOptions()
-            .client?.request('embedded_login', ['force'], _clientParams)
-            .then((result: unknown) => {
-              return result
-            })
-        }
-        const result = await this._getOptions().loginPromise
-        
-        // For wallet_requestPermissions, format the response according to EIP-2255
-        if (method === 'wallet_requestPermissions') {
-          // embedded_login returns accounts array, format it as permissions
-          const accounts = Array.isArray(result) ? result : this.accounts
-          
-          // Close the modal after user interaction for wallet_requestPermissions
-          if (this._getOptions()?.popup) {
-            clientLog('Closing modal after wallet_requestPermissions')
-            this._getOptions()?.popup?.closeModal()
+      bufferedEvents = undefined
+      setTimeout(() => {
+        while (buffered.length > 0) {
+          const val = buffered.shift()
+          if (val) {
+            const [event, args] = val
+            emitter.emit(event, ...(args as any))
           }
-          
-          return [{
-            parentCapability: 'eth_accounts',
-            invoker: window.location.origin,
-            caveats: [{
-              type: 'restrictReturnedAccounts',
-              value: accounts
-            }]
-          }]
         }
-        // For eth_requestAccounts, the accounts will be returned below
-      }
-    }
-    if (method === 'eth_requestAccounts' || method === 'eth_accounts') {
-      if (this.chainId && this.accounts.length > 0) {
-        if (!this._getOptions()?.connectEmitted) {
-          this.emit('connect', { chainId: `0x${this.chainId.toString(16)}` })
-          this._getOptions().connectEmitted = true
+      }, delay)
+    },
+
+    get isConnected(): boolean {
+      return options.allowedAccounts().length > 0
+    },
+
+    get isMiniApp(): Promise<boolean> {
+      return options
+        ?.startupPromise.catch(() => false)
+        .then(() => true)
+    },
+
+    request: async (_method: string | { method: string; params?: JSONRPCParams }, _params?: JSONRPCParams, _clientParams?: any): Promise<any> => {
+      await options?.preStartupPromise
+      const method = typeof _method === 'string' ? _method : _method.method
+      const params = typeof _method === 'string' ? _params : _method.params
+      if (!options?.client) {
+        if (options?.isPopup && (options.isIframe || method === 'eth_sendTransaction' || method === 'eth_requestAccounts' || (method === 'eth_accounts' && provider.accounts?.length === 0))) {
+          await options?.allocateConnection()
+          await options?.startupPromise
         }
-      } else {
-        this._getOptions().connectEmitted = false
       }
-      return this.accounts
-    }
-    if (method === 'eth_chainId') {
-      return `0x${this.chainId.toString(16)}`
-    }
-    if (method === 'wallet_switchEthereumChain') {
-      this._getOptions().switchChainId(Number(params?.[0]?.chainId))
-      return `0x${this.chainId.toString(16)}`
-    }
-    if (method === 'eth_accounts') {
-      return this.accounts
-    }
-    // Internally this will decode method.method and method.params if it was sent.
-    // i.e. this method is patched.
-    const clientParams = typeof _method === 'string' ? _clientParams : _params
-    if (method === 'up_contextAccounts') {
-      return this._getOptions().contextAccounts()
-    }
-    
-    // Ensure client is allocated before making request
-    if (!this._getOptions()?.client) {
-      clientLog('Client not ready, allocating connection first')
-      await this._getOptions()?.allocateConnection()
-      await this._getOptions()?.startupPromise
-    }
-    
-    // For wallet_requestPermissions, handle the response to update accounts
-    if (method === 'wallet_requestPermissions') {
-      const result = await this._getOptions()?.client?.request(method, params, clientParams)
-      if (result && result[0]?.accounts) {
-        const newAccounts = result[0].accounts as `0x${string}`[]
-        const currentAccounts = this._getOptions()?.allowedAccounts() || []
+      if (method === 'eth_requestAccounts' || method === 'wallet_requestPermissions') {
+        const shouldShowUI = method === 'wallet_requestPermissions' || !provider.accounts?.length
         
-        // Use the same comparison logic as elsewhere in the code
-        if ((currentAccounts?.length ?? 0) !== (newAccounts?.length ?? 0) || currentAccounts?.some((account, index) => account !== newAccounts[index])) {
-          // Emit the event - the actual account update will happen when we receive the accountsChanged event
-          clientLog('wallet_requestPermissions returned different accounts, expecting accountsChanged event')
-          // The server should send accountsChanged, but if not, we can emit it ourselves
-          // For now, just log it
+        if (options?.isIframe && options.popup && shouldShowUI) {
+          options.popup?.openModal()
+          if (!options.loginPromise) {
+            options.loginPromise = options
+              .client?.request('embedded_login', ['force'], _clientParams)
+              .then((result: unknown) => {
+                return result
+              })
+          }
+          const result = await options.loginPromise
+          
+          if (method === 'wallet_requestPermissions') {
+            const accounts = Array.isArray(result) ? result : provider.accounts
+            
+            if (options?.popup) {
+              clientLog('Closing modal after wallet_requestPermissions')
+              options?.popup?.closeModal()
+            }
+            
+            return [{
+              parentCapability: 'eth_accounts',
+              invoker: window.location.origin,
+              caveats: [{
+                type: 'restrictReturnedAccounts',
+                value: accounts
+              }]
+            }]
+          }
         }
       }
-      return result
+      if (method === 'eth_requestAccounts' || method === 'eth_accounts') {
+        if (provider.chainId && provider.accounts.length > 0) {
+          if (!options?.connectEmitted) {
+            provider.emit('connect', { chainId: `0x${provider.chainId.toString(16)}` })
+            options.connectEmitted = true
+          }
+        } else {
+          options.connectEmitted = false
+        }
+        return provider.accounts
+      }
+      if (method === 'eth_chainId') {
+        return `0x${provider.chainId.toString(16)}`
+      }
+      if (method === 'wallet_switchEthereumChain') {
+        options.switchChainId(Number(params?.[0]?.chainId))
+        return `0x${provider.chainId.toString(16)}`
+      }
+      if (method === 'eth_accounts') {
+        return provider.accounts
+      }
+      const clientParams = typeof _method === 'string' ? _clientParams : _params
+      if (method === 'up_contextAccounts') {
+        return options.contextAccounts()
+      }
+      
+      if (!options?.client) {
+        clientLog('Client not ready, allocating connection first')
+        await options?.allocateConnection()
+        await options?.startupPromise
+      }
+      
+      if (method === 'wallet_requestPermissions') {
+        const result = await options?.client?.request(method, params, clientParams)
+        if (result && result[0]?.accounts) {
+          const newAccounts = result[0].accounts as `0x${string}`[]
+          const currentAccounts = options?.allowedAccounts() || []
+          
+          if ((currentAccounts?.length ?? 0) !== (newAccounts?.length ?? 0) || currentAccounts?.some((account, index) => account !== newAccounts[index])) {
+            clientLog('wallet_requestPermissions returned different accounts, expecting accountsChanged event')
+          }
+        }
+        return result
+      }
+      
+      return options?.client?.request(method, params, clientParams) || null
+    },
+
+    get chainId() {
+      return options?.chainId() || 0
+    },
+
+    get accounts() {
+      return options?.allowedAccounts() || []
+    },
+
+    get contextAccounts() {
+      return options?.contextAccounts() || []
     }
-    
-    return this._getOptions()?.client?.request(method, params, clientParams) || null
   }
-
-  get chainId() {
-    return this._getOptions()?.chainId() || 0
-  }
-
-  get accounts() {
-    return this._getOptions()?.allowedAccounts() || []
-  }
-
-  get contextAccounts() {
-    return this._getOptions()?.contextAccounts() || []
-  }
+  
+  return provider
 }
 
 /**
@@ -868,7 +875,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     })
   }
 
-  const remote = new _UPClientProvider(options)
+  const remote = createUPClientProvider(options)
   let searchPromise: Promise<UPClientProvider> | null
 
   if (authURL && !(authURL instanceof Window)) {
@@ -1042,7 +1049,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
               clientLog('Response received for id:', response.id, 'found in pending:', !!item, 'method was:', item?.method)
               if (response.id && item) {
                 const { resolve, reject } = item
-                if (response.result) {
+                if (response.result !== undefined) {
                   client.receive({ ...response, id: item.id }) // Handle the response
                   resolve() // Resolve the corresponding promise
                 } else if (response.error) {
