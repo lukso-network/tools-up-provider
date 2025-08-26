@@ -1,6 +1,6 @@
 {
   "name": "@lukso/up-provider",
-  "version": "0.3.5-test6",
+  "version": "0.3.5-test7",
   "packageManager": "yarn@3.3.0",
   "files": [
     "dist",
