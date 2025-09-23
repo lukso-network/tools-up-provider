@@ -244,7 +244,7 @@ function createUPClientProvider(options: UPClientProviderOptions) {
       const method = typeof _method === 'string' ? _method : _method.method
       const params = typeof _method === 'string' ? _params : _method.params
       if (!options?.client) {
-        if (options?.isPopup && (options.isIframe || method === 'eth_sendTransaction' || method === 'eth_requestAccounts' || (method === 'eth_accounts' && provider.accounts?.length === 0))) {
+        if ((options?.isPopup || options.isIframe) && (method === 'wallet_requestPermissions' || method === 'eth_sendTransaction' || method === 'eth_requestAccounts' || (method === 'eth_accounts' && provider.accounts?.length === 0))) {
           await options?.allocateConnection()
           await options?.startupPromise
         }
@@ -252,8 +252,11 @@ function createUPClientProvider(options: UPClientProviderOptions) {
       if (method === 'eth_requestAccounts' || method === 'wallet_requestPermissions') {
         const shouldShowUI = method === 'wallet_requestPermissions' || !provider.accounts?.length
         
-        if (options?.isIframe && options.popup && shouldShowUI) {
-          options.popup?.openModal()
+        if ((options?.isIframe || options?.isPopup) && shouldShowUI) {
+          if (options.popup) {
+            options.popup?.openModal()
+          }
+
           if (!options.loginPromise) {
             options.loginPromise = options
               .client?.request('embedded_login', ['force'], _clientParams)
@@ -280,6 +283,23 @@ function createUPClientProvider(options: UPClientProviderOptions) {
               }]
             }]
           }
+        }
+        if (method === 'wallet_requestPermissions') {
+          const accounts = provider.accounts
+
+          if (options?.popup) {
+            clientLog('Closing modal after wallet_requestPermissions')
+            options?.popup?.closeModal()
+          }
+          
+          return [{
+            parentCapability: 'eth_accounts',
+            invoker: window.location.origin,
+            caveats: [{
+              type: 'restrictReturnedAccounts',
+              value: accounts
+            }]
+          }]
         }
       }
       if (method === 'eth_requestAccounts' || method === 'eth_accounts') {
@@ -316,8 +336,8 @@ function createUPClientProvider(options: UPClientProviderOptions) {
       
       if (method === 'wallet_requestPermissions') {
         const result = await options?.client?.request(method, params, clientParams)
-        if (result && result[0]?.accounts) {
-          const newAccounts = result[0].accounts as `0x${string}`[]
+        if (result && result[0]?.caveats?.[0]?.type === 'restrictReturnedAccounts' && Array.isArray(result[0].caveats[0].value)) {
+          const newAccounts = result[0].caveats[0].value as `0x${string}`[]
           const currentAccounts = options?.allowedAccounts() || []
           
           if ((currentAccounts?.length ?? 0) !== (newAccounts?.length ?? 0) || currentAccounts?.some((account, index) => account !== newAccounts[index])) {
@@ -529,16 +549,11 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
         const childWindow = window.open(authURL.url, 'UE Wallet', 'width=400,height=600')
         if (childWindow) {
           clientLog('popup opened')
-          await new Promise<void>(resolve => {
-            childWindow.onload = () => {
-              resolve()
-            }
-          })
-          childWindow.addEventListener('close', () => {
-            clientLog('popup closed')
-            options.restart()
-            remote.emit('windowClosed')
-          })
+          // childWindow.addEventListener('close', () => {
+          //   clientLog('popup closed')
+          //   options.restart()
+          //   remote.emit('windowClosed')
+          // })
           theWindow = childWindow
         }
       }

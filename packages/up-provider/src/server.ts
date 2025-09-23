@@ -702,6 +702,20 @@ function _createUPProviderConnector(
         return null
       }
 
+      if (window.opener !== window && _id === window.opener) {
+        serverLog('getChannel: Looking up parent window channel')
+        // Check if we already have a channel for the parent window
+        for (const item of getChannels().values()) {
+          // For parent window, we can't compare directly due to cross-origin
+          // Instead, check if this is our special parent window channel
+          if (item.window === window.opener) {
+            return item
+          }
+        }
+        // No existing channel for parent window
+        return null
+      }
+
       // Now safe to check if it's a UPClientChannel (only for non-parent windows)
       if ('element' in (_id as any) || 'window' in (_id as any)) {
         _id = (_id as UPClientChannel).element || (_id as UPClientChannel).window
@@ -1110,14 +1124,22 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
                 }
 
                 // Handle wallet_requestPermissions response for popup/iframe modes
+                // return [{
+                //   parentCapability: 'eth_accounts',
+                //   invoker: window.location.origin,
+                //   caveats: [{
+                //     type: 'restrictReturnedAccounts',
+                //     value: accounts
+                //   }]
+                // }]
                 if (request.method === 'wallet_requestPermissions' && response.result) {
                   // Only update accounts automatically for iframe/popup modes
                   const isIframeOrPopup = channel_.element !== null || (channel_.window && channel_.window !== window)
 
                   if (isIframeOrPopup) {
                     const permissions = response.result[0]
-                    if (permissions?.accounts) {
-                      const newAccounts = permissions.accounts as `0x${string}`[]
+                    if (permissions?.caveats?.[0]?.type === 'restrictReturnedAccounts' && Array.isArray(permissions.caveats[0].value)) {
+                      const newAccounts = permissions.caveats[0].value as `0x${string}`[]
                       const currentAccounts = channel_.allowedAccounts
 
                       // Check if accounts changed using same logic as elsewhere
