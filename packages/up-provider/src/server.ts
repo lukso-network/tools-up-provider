@@ -5,9 +5,12 @@ import { v4 as uuidv4 } from 'uuid'
 import { arrayChanged, cleanupAccounts } from '.'
 
 const serverLog = debug('upProvider:server')
+
+// Unique identifier for UP Provider JSONRPC messages
+const UP_PROVIDER_JSONRPC_TYPE = 'upProvider:jsonrpc' as const
 interface UPClientChannelEvents {
-  connected: () => void
-  disconnected: () => void
+  connect: (args: { chainId: `0x${string}` }) => void
+  disconnect: () => void
   contextAccountsChanged: (accounts: `0x${string}`[]) => void
   accountsChanged: (accounts: `0x${string}`[]) => void
   requestAccounts: (accounts: `0x${string}`[]) => void
@@ -184,193 +187,279 @@ interface UPClientChannel {
   setupChannel(enable: boolean, accounts: `0x${string}`[], contextAccounts: `0x${string}`[], chainId: number): Promise<void>
 
   /**
+   * Show or hide the popup/modal
+   * @param show - true to show, false to hide
+   */
+  showPopup(show: boolean): Promise<void>
+
+  /**
    * Close the channel
    */
   close(): void
+
+  _serverChannel: MessagePort
 }
 
-class _UPClientChannel extends EventEmitter3<UPClientChannelEvents> implements UPClientChannel {
-  #accounts: `0x${string}`[] = []
-  #contextAccounts: `0x${string}`[] = []
-  #chainId = 0
-  #rpcUrls: string[] = []
-  #buffered?: Array<[keyof UPClientChannelEvents, unknown[]]> = []
-  #serverChannel: MessagePort
-  #server: JSONRPCServer
-  readonly #getter: () => boolean
-  readonly #setter: (value: boolean) => void
-
-  constructor(serverChannel: MessagePort, public readonly window: Window, public readonly element: HTMLIFrameElement | null, public readonly id: string, server: JSONRPCServer, getter: () => boolean, setter: (value: boolean) => void) {
-    super()
-    this.#getter = getter
-    this.#setter = setter
-    this.#serverChannel = serverChannel
-    this.#server = server
-  }
-
-  emit<T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, ...args: EventEmitter.EventArgs<UPClientChannelEvents, T>): boolean {
-    if (this.#buffered) {
-      this.#buffered.push([event, args])
-      return false
-    }
-    return super.emit(event, ...args)
-  }
-
-  resume(delay = 0) {
-    const buffered = this.#buffered
-    if (!buffered) {
-      return
-    }
-    this.#buffered = undefined
-    setTimeout(() => {
-      while (buffered.length > 0) {
-        const val = buffered.shift()
-        if (val) {
-          const [event, args] = val
-          super.emit(event, ...(args as any))
+function createUPClientChannel(
+  serverChannel: MessagePort,
+  window: Window,
+  element: HTMLIFrameElement | null,
+  id: string,
+  server: JSONRPCServer,
+  getter: () => boolean,
+  setter: (value: boolean) => void
+): UPClientChannel {
+  let accounts: `0x${string}`[] = []
+  let contextAccounts: `0x${string}`[] = []
+  let chainId = 0
+  let rpcUrls: string[] = []
+  let bufferedEvents: Array<[keyof UPClientChannelEvents, unknown[]]> | undefined = []
+  
+  const emitter = new EventEmitter3<UPClientChannelEvents>()
+  
+  const channel: UPClientChannel = {
+    _serverChannel: serverChannel,
+    window,
+    element,
+    id,
+    
+    eventNames: () => emitter.eventNames(),
+    listeners: <T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T) => emitter.listeners(event),
+    listenerCount: (event: EventEmitter.EventNames<UPClientChannelEvents>) => emitter.listenerCount(event),
+    
+    emit: <T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, ...args: EventEmitter.EventArgs<UPClientChannelEvents, T>): boolean => {
+      if (bufferedEvents) {
+        bufferedEvents.push([event, args])
+        return false
+      }
+      return emitter.emit(event, ...args)
+    },
+    
+    on: <T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, fn: EventEmitter.EventListener<UPClientChannelEvents, T>, context?: any) => {
+      channel.resume(100)
+      emitter.on(event, fn, context)
+      return channel
+    },
+    
+    addListener: <T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, fn: EventEmitter.EventListener<UPClientChannelEvents, T>, context?: any) => {
+      channel.resume(100)
+      emitter.addListener(event, fn, context)
+      return channel
+    },
+    
+    once: <T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, fn: EventEmitter.EventListener<UPClientChannelEvents, T>, context?: any) => {
+      emitter.once(event, fn, context)
+      return channel
+    },
+    
+    removeListener: <T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, fn?: EventEmitter.EventListener<UPClientChannelEvents, T>, context?: any, once?: boolean) => {
+      emitter.removeListener(event, fn, context, once)
+      return channel
+    },
+    
+    off: <T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, fn?: EventEmitter.EventListener<UPClientChannelEvents, T>, context?: any, once?: boolean) => {
+      emitter.off(event, fn, context, once)
+      return channel
+    },
+    
+    removeAllListeners: (event?: EventEmitter.EventNames<UPClientChannelEvents>) => {
+      emitter.removeAllListeners(event)
+      return channel
+    },
+    
+    resume: (delay = 0) => {
+      const buffered = bufferedEvents
+      if (!buffered) {
+        return
+      }
+      bufferedEvents = undefined
+      setTimeout(() => {
+        while (buffered.length > 0) {
+          const val = buffered.shift()
+          if (val) {
+            const [event, args] = val
+            emitter.emit(event, ...(args as any))
+          }
+        }
+      }, delay)
+    },
+    
+    send: async (method: string, params: unknown[]): Promise<void> => {
+      const message = {
+        jsonrpc: '2.0',
+        id: uuidv4(),
+        method,
+        params,
+      }
+      serverChannel.postMessage(message)
+    },
+    
+    setAllowedAccounts: async (newAccounts: `0x${string}`[]): Promise<void> => {
+      serverLog('allowedAccounts', newAccounts)
+      const accountsChanged = arrayChanged(accounts, newAccounts)
+      if (accountsChanged) {
+        const wasEmpty = accounts.length === 0
+        accounts = [...newAccounts]
+        if (getter()) {
+          await channel.send('accountsChanged', cleanupAccounts([...accounts]))
+          if (wasEmpty !== (accounts.length === 0)) {
+            if (getter() && accounts.length > 0) {
+              const hexChainId = `0x${chainId.toString(16)}` as `0x${string}`
+              channel.emit('connect', { chainId: hexChainId })
+              channel.send('connect', [{ chainId: hexChainId }])
+            } else {
+              channel.emit('disconnect')
+              channel.send('disconnect', [])
+            }
+          }
         }
       }
-    }, delay)
-  }
-
-  on<T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, fn: EventEmitter.EventListener<UPClientChannelEvents, T>, context?: any) {
-    this.resume(100)
-    return super.on(event, fn, context)
-  }
-  addListener<T extends EventEmitter.EventNames<UPClientChannelEvents>>(event: T, fn: EventEmitter.EventListener<UPClientChannelEvents, T>, context?: any) {
-    this.resume(100)
-    return super.addListener(event, fn, context)
-  }
-
-  public async send(method: string, params: unknown[]): Promise<void> {
-    this.#serverChannel.postMessage({
-      jsonrpc: '2.0',
-      id: uuidv4(),
-      method,
-      params,
-    })
-  }
-
-  public async setAllowedAccounts(accounts: `0x${string}`[]): Promise<void> {
-    serverLog('allowedAccounts', accounts)
-    const accountsChanged = arrayChanged(this.#accounts, accounts)
-    if (accountsChanged) {
-      const wasEmpty = this.#accounts.length === 0
-      this.#accounts = [...accounts]
-      if (this.#getter()) {
-        await this.send('accountsChanged', cleanupAccounts([...this.#accounts]))
-        if (wasEmpty !== (this.#accounts.length === 0)) {
-          this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
+    },
+    
+    set allowedAccounts(newAccounts: `0x${string}`[]) {
+      channel.setAllowedAccounts(newAccounts)
+    },
+    
+    get allowedAccounts(): `0x${string}`[] {
+      return [...accounts]
+    },
+    
+    setContextAccounts: async (newContextAccounts: `0x${string}`[]): Promise<void> => {
+      const accountsChanged = arrayChanged(contextAccounts, newContextAccounts)
+      if (accountsChanged) {
+        serverLog('contextAccounts', newContextAccounts)
+        contextAccounts = [...newContextAccounts]
+        await channel.send('contextAccountsChanged', cleanupAccounts([...contextAccounts]))
+      }
+    },
+    
+    set contextAccounts(newContextAccounts: `0x${string}`[]) {
+      channel.setContextAccounts(newContextAccounts)
+    },
+    
+    get contextAccounts(): `0x${string}`[] {
+      return [...contextAccounts]
+    },
+    
+    setupChannel: async (enable: boolean, newAccounts: `0x${string}`[], newContextAccounts: `0x${string}`[], newChainId: number): Promise<void> => {
+      const accountsChanged = arrayChanged(accounts, newAccounts)
+      let sendAccountsChanged = false
+      if (accountsChanged) {
+        serverLog('allowedAccounts', newAccounts)
+        accounts = [...newAccounts]
+        sendAccountsChanged = enable
+      }
+      const contextAccountsChanged = arrayChanged(contextAccounts, newContextAccounts)
+      let sendContextAccountsChanged = false
+      if (contextAccountsChanged) {
+        serverLog('contextAccounts', newContextAccounts)
+        contextAccounts = [...newContextAccounts]
+        sendContextAccountsChanged = true
+      }
+      let sendChainChanged = false
+      if (chainId !== newChainId) {
+        serverLog('chainId', newChainId)
+        chainId = newChainId
+        sendChainChanged = true
+      }
+      if (enable !== channel.enable) {
+        serverLog('enable', enable)
+        setter(enable)
+        sendAccountsChanged = true
+      }
+      if (sendChainChanged) {
+        await channel.send('chainChanged', [newChainId])
+        channel.emit('chainChanged', newChainId)
+      }
+      if (sendContextAccountsChanged) {
+        await channel.send('contextAccountsChanged', cleanupAccounts([...contextAccounts]))
+      }
+      if (sendAccountsChanged) {
+        await channel.send('accountsChanged', cleanupAccounts(getter() ? [...accounts] : []))
+        if (getter() && accounts.length > 0) {
+          const hexChainId = `0x${chainId.toString(16)}` as `0x${string}`
+          channel.emit('connect', { chainId: hexChainId })
+          channel.send('connect', [{ chainId: hexChainId }])
+        } else {
+          channel.emit('disconnect')
+          channel.send('disconnect', [])
         }
       }
+    },
+    
+    setEnable: async (value: boolean): Promise<void> => {
+      if (value !== channel.enable) {
+        setter(value)
+        channel.send('accountsChanged', cleanupAccounts(getter() ? [...accounts] : []))
+        if (getter() && accounts.length > 0) {
+          const hexChainId = `0x${chainId.toString(16)}` as `0x${string}`
+          channel.emit('connect', { chainId: hexChainId })
+          channel.send('connect', [{ chainId: hexChainId }])
+        } else {
+          channel.emit('disconnect')
+          channel.send('disconnect', [])
+        }
+      }
+    },
+    
+    set enable(value: boolean) {
+      channel.setEnable(value)
+    },
+    
+    get enable(): boolean {
+      return getter()
+    },
+    
+    setChainId: async (newChainId: number): Promise<void> => {
+      if (chainId !== newChainId) {
+        chainId = newChainId
+        await channel.send('chainChanged', [newChainId])
+        channel.emit('chainChanged', newChainId)
+      }
+    },
+    
+    get chainId(): number {
+      return chainId
+    },
+    
+    set chainId(newChainId: number) {
+      channel.setChainId(newChainId)
+    },
+    
+    setRpcUrls: async (newRpcUrls: string[]): Promise<void> => {
+      if (arrayChanged(newRpcUrls, rpcUrls)) {
+        rpcUrls = newRpcUrls
+        await channel.send('rpcUrlsChanged', newRpcUrls)
+      }
+    },
+    
+    get rpcUrls(): string[] {
+      return [...rpcUrls]
+    },
+    
+    set rpcUrls(newRpcUrls: string[]) {
+      channel.setRpcUrls(newRpcUrls)
+    },
+    
+    showPopup: async (show: boolean): Promise<void> => {
+      serverLog('showPopup requested:', show)
+      await channel.send('showPopup', [show])
+    },
+    
+    close: () => {
+      const el: any = element || window
+      try {
+        if (el.upChannel === channel) {
+          el.upChannel = undefined
+        }
+      } catch {
+        // ignore
+      }
+      serverChannel.close()
     }
   }
-  public set allowedAccounts(accounts: `0x${string}`[]) {
-    this.setAllowedAccounts(accounts)
-  }
-  public get allowedAccounts(): `0x${string}`[] {
-    return [...this.#accounts]
-  }
-
-  public async setContextAccounts(contextAccounts: `0x${string}`[]): Promise<void> {
-    const accountsChanged = arrayChanged(this.#contextAccounts, contextAccounts)
-    if (accountsChanged) {
-      serverLog('contextAccounts', contextAccounts)
-      this.#contextAccounts = [...contextAccounts]
-      await this.send('contextAccountsChanged', cleanupAccounts([...this.#contextAccounts]))
-    }
-  }
-  public get contextAccounts(): `0x${string}`[] {
-    return [...this.#contextAccounts]
-  }
-
-  public async setupChannel(enable: boolean, accounts: `0x${string}`[], contextAccounts: `0x${string}`[], chainId: number): Promise<void> {
-    const accountsChanged = arrayChanged(this.#accounts, accounts)
-    let sendAccountsChanged = false
-    if (accountsChanged) {
-      serverLog('allowedAccounts', accounts)
-      this.#accounts = [...accounts]
-      sendAccountsChanged = enable
-    }
-    const contextAccountsChanged = arrayChanged(this.#contextAccounts, contextAccounts)
-    let sendContextAccountsChanged = false
-    if (contextAccountsChanged) {
-      serverLog('contextAccounts', contextAccounts)
-      this.#contextAccounts = [...contextAccounts]
-      sendContextAccountsChanged = true
-    }
-    let sendChainChanged = false
-    if (this.#chainId !== chainId) {
-      serverLog('chainId', contextAccounts)
-      this.#chainId = chainId
-      sendChainChanged = true
-    }
-    if (enable !== this.enable) {
-      serverLog('enable', enable)
-      this.#setter(enable)
-      sendAccountsChanged = true
-    }
-    if (sendChainChanged) {
-      await this.send('chainChanged', [chainId])
-      this.emit('chainChanged', chainId)
-    }
-    if (sendContextAccountsChanged) {
-      await this.send('contextAccountsChanged', cleanupAccounts([...this.#contextAccounts]))
-    }
-    if (sendAccountsChanged) {
-      await this.send('accountsChanged', cleanupAccounts(this.#getter() ? [...this.#accounts] : []))
-      this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
-    }
-  }
-
-  public async setEnable(value: boolean): Promise<void> {
-    if (value !== this.enable) {
-      this.#setter(value)
-      this.send('accountsChanged', cleanupAccounts(this.#getter() ? [...this.#accounts] : []))
-      this.emit(this.#getter() && this.#accounts.length > 0 ? 'connected' : 'disconnected')
-    }
-  }
-  public set enable(value: boolean) {
-    this.setEnable(value)
-  }
-  public get enable(): boolean {
-    return this.#getter()
-  }
-
-  public async setChainId(chainId: number): Promise<void> {
-    if (this.#chainId !== chainId) {
-      this.#chainId = chainId
-      await this.send('chainChanged', [chainId])
-      this.emit('chainChanged', chainId)
-    }
-  }
-  public get chainId(): number {
-    return this.#chainId
-  }
-  public set chainId(chainId: number) {
-    this.setChainId(chainId)
-  }
-
-  public async setRpcUrls(rpcUrls: string[]): Promise<void> {
-    if (arrayChanged(rpcUrls, this.#rpcUrls)) {
-      this.#rpcUrls = rpcUrls
-      await this.send('rpcUrlsChanged', rpcUrls)
-    }
-  }
-  public get rpcUrls(): string[] {
-    return [...this.#rpcUrls]
-  }
-  public set rpcUrls(rpcUrls: string[]) {
-    this.setRpcUrls(rpcUrls)
-  }
-
-  public close() {
-    const el: any = this.element || this.window
-    if (el.upChannel === this) {
-      el.upChannel = undefined
-    }
-    this.#serverChannel.close()
-  }
+  
+  return channel
 }
 
 interface UPProviderEndpointEvents {
@@ -494,185 +583,238 @@ interface UPProviderConnector {
   setupProvider(provider: UPProviderEndpoint, rpcUrls: string | string[]): Promise<void>
 }
 
-class _UPProviderConnector extends EventEmitter3<UPProviderConnectorEvents> implements UPProviderConnector {
-  #options: UPProviderConnectorOptions
-  #channels: Map<string, UPClientChannel>
-
-  constructor(channels: Map<string, UPClientChannel>, options: any) {
-    super()
-    this.#channels = channels
-
-    // This is a private late initialization of the class properties.
-    // Since there is no way to do a await inside of a constructor this is used to provide
-    // certain values late, but still have them hidden from external access.
-    this.#options = options as UPProviderConnectorOptions
-  }
-
-  private _getChannels = (): Map<string, UPClientChannel> => {
-    return this.#channels
-  }
-  private _getOptions = (): UPProviderConnectorOptions => {
-    return this.#options
-  }
-
-  close() {
-    if (this._getOptions().providerHandler) {
-      window.removeEventListener('message', this._getOptions().providerHandler as any)
-      this._getOptions().providerHandler = undefined
-    }
-  }
-
-  get provider(): UPProviderEndpoint {
-    return this._getOptions().provider
-  }
-
-  async setAllowedAccounts(accounts: `0x${string}`[]): Promise<void> {
-    const allowedAccountsChanged = arrayChanged(this._getOptions().allowedAccounts, accounts)
-    if (allowedAccountsChanged) {
-      this._getOptions().allowedAccounts = [...accounts]
-      for (const item of this.channels.values()) {
-        await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
+function _createUPProviderConnector(
+  channels: Map<string, UPClientChannel>,
+  options: UPProviderConnectorOptions
+): UPProviderConnector {
+  const emitter = new EventEmitter3<UPProviderConnectorEvents>()
+  
+  const getChannels = (): Map<string, UPClientChannel> => channels
+  
+  const connector: UPProviderConnector = {
+    eventNames: () => emitter.eventNames(),
+    listeners: <T extends EventEmitter.EventNames<UPProviderConnectorEvents>>(event: T) => emitter.listeners(event),
+    listenerCount: (event: EventEmitter.EventNames<UPProviderConnectorEvents>) => emitter.listenerCount(event),
+    
+    emit: <T extends EventEmitter.EventNames<UPProviderConnectorEvents>>(event: T, ...args: EventEmitter.EventArgs<UPProviderConnectorEvents, T>): boolean => {
+      return emitter.emit(event, ...args)
+    },
+    
+    on: <T extends EventEmitter.EventNames<UPProviderConnectorEvents>>(event: T, fn: EventEmitter.EventListener<UPProviderConnectorEvents, T>, context?: any) => {
+      emitter.on(event, fn, context)
+      return connector
+    },
+    
+    addListener: <T extends EventEmitter.EventNames<UPProviderConnectorEvents>>(event: T, fn: EventEmitter.EventListener<UPProviderConnectorEvents, T>, context?: any) => {
+      emitter.addListener(event, fn, context)
+      return connector
+    },
+    
+    once: <T extends EventEmitter.EventNames<UPProviderConnectorEvents>>(event: T, fn: EventEmitter.EventListener<UPProviderConnectorEvents, T>, context?: any) => {
+      emitter.once(event, fn, context)
+      return connector
+    },
+    
+    removeListener: <T extends EventEmitter.EventNames<UPProviderConnectorEvents>>(event: T, fn?: EventEmitter.EventListener<UPProviderConnectorEvents, T>, context?: any, once?: boolean) => {
+      emitter.removeListener(event, fn, context, once)
+      return connector
+    },
+    
+    off: <T extends EventEmitter.EventNames<UPProviderConnectorEvents>>(event: T, fn?: EventEmitter.EventListener<UPProviderConnectorEvents, T>, context?: any, once?: boolean) => {
+      emitter.off(event, fn, context, once)
+      return connector
+    },
+    
+    removeAllListeners: (event?: EventEmitter.EventNames<UPProviderConnectorEvents>) => {
+      emitter.removeAllListeners(event)
+      return connector
+    },
+    
+    close: () => {
+      if (options.providerHandler) {
+        window.removeEventListener('message', options.providerHandler as any)
+        options.providerHandler = undefined
       }
-    }
-  }
-  get allowedAccounts(): `0x${string}`[] {
-    return cleanupAccounts(this._getOptions().allowedAccounts)
-  }
-  set allowedAccounts(accounts: `0x${string}`[]) {
-    this.setAllowedAccounts(accounts)
-  }
+    },
 
-  async setChainId(chainId: number): Promise<void> {
-    if (this._getOptions().chainId !== chainId) {
-      this._getOptions().chainId = chainId
-      for (const item of this.channels.values()) {
-        await item.setChainId(this._getOptions().chainId)
+    get provider(): UPProviderEndpoint {
+      return options.provider
+    },
+
+    setAllowedAccounts: async (accounts: `0x${string}`[]): Promise<void> => {
+      const allowedAccountsChanged = arrayChanged(options.allowedAccounts, accounts)
+      if (allowedAccountsChanged) {
+        options.allowedAccounts = [...accounts]
+        for (const item of connector.channels.values()) {
+          await item.setAllowedAccounts(item.enable ? cleanupAccounts(options.allowedAccounts) : [])
+        }
       }
-    }
-  }
-  get chainId(): number {
-    return this._getOptions().chainId
-  }
-  set chainId(chainId: number) {
-    this.setChainId(chainId)
-  }
-  /**
-   * Get a map of all clients by their ID.
-   */
-  get channels(): Map<string, UPClientChannel> {
-    return new Map(this._getChannels())
-  }
+    },
+    
+    get allowedAccounts(): `0x${string}`[] {
+      return cleanupAccounts(options.allowedAccounts)
+    },
+    
+    set allowedAccounts(accounts: `0x${string}`[]) {
+      connector.setAllowedAccounts(accounts)
+    },
 
-  /**
-   * Find the client for the element, window or proxy object of the client.
-   * @param id
-   * @returns actual UPClientChannel
-   */
-  getChannel(id: string | Window | HTMLIFrameElement | UPClientChannel | null): UPClientChannel | null {
-    let _id = id
-    if (typeof _id === 'string') {
-      return this._getChannels().get(_id) || null
-    }
-    if ('element' in (_id as any) || 'window' in (_id as any)) {
-      _id = (_id as UPClientChannel).element || (_id as UPClientChannel).window
-    }
-    for (const item of this._getChannels().values()) {
-      if (item.window === _id || item.element === _id) {
-        return item
+    setChainId: async (chainId: number): Promise<void> => {
+      if (options.chainId !== chainId) {
+        options.chainId = chainId
+        for (const item of connector.channels.values()) {
+          await item.setChainId(options.chainId)
+        }
       }
-    }
-    return null
-  }
+    },
+    
+    get chainId(): number {
+      return options.chainId
+    },
+    
+    set chainId(chainId: number) {
+      connector.setChainId(chainId)
+    },
+    
+    get channels(): Map<string, UPClientChannel> {
+      return new Map(getChannels())
+    },
 
-  /**
-   * Inject additional addresses into the client's accountsChanged event.
-   * Account[0] will be linked to the signed when making transactions.
-   * Starting at Account[1] is where additional addresses are injected.
-   * This routine injects on all connections. You can also inject using
-   * the channel's allowedAccounts method.
-   * @param page list of addresses
-   */
-  async setContextAccounts(contextAccounts: `0x${string}`[]) {
-    const contextAccountsChanged = arrayChanged(this._getOptions().contextAccounts, contextAccounts)
-    if (contextAccountsChanged) {
-      this._getOptions().contextAccounts = [...contextAccounts]
-      for (const item of this.channels.values()) {
-        await item.setContextAccounts(cleanupAccounts(this._getOptions().contextAccounts))
+    getChannel: (id: string | Window | HTMLIFrameElement | UPClientChannel | null): UPClientChannel | null => {
+      let _id = id
+      if (typeof _id === 'string') {
+        return getChannels().get(_id) || null
       }
-    }
-  }
-  get contextAccounts(): `0x${string}`[] {
-    return cleanupAccounts(this._getOptions().contextAccounts)
-  }
-  set contextAccounts(contextAccounts: `0x${string}`[]) {
-    this.setContextAccounts(contextAccounts)
-  }
 
-  /**
-   * Connect this provider externally. This will be called during initial construction
-   * but can be called at a later time if desired to re-initialize or tear down
-   * the connection.
-   * @param provider
-   * @param rpcUrls
-   */
-  async setupProvider(provider: any, rpcUrls: string | string[]): Promise<void> {
-    this._getOptions().promise = new Promise<void>((resolve, reject) => {
-      ;(async () => {
-        try {
-          const oldCallback = this._getOptions().providerAccountsChangedCallback
-          if (this._getOptions().provider && oldCallback) {
-            this._getOptions().provider?.off('accountsChanged', oldCallback)
-            this._getOptions().providerAccountsChangedCallback = undefined
+      // Special handling when running inside an iframe and looking up parent window
+      // Do this BEFORE any property access that might fail on cross-origin objects
+      if (window.parent !== window && _id === window.parent) {
+        serverLog('getChannel: Looking up parent window channel')
+        // Check if we already have a channel for the parent window
+        for (const item of getChannels().values()) {
+          // For parent window, we can't compare directly due to cross-origin
+          // Instead, check if this is our special parent window channel
+          if (item.window === window.parent) {
+            return item
           }
-          this._getOptions().provider = provider
-          const newRpcUrls = Array.isArray(rpcUrls) ? rpcUrls : [rpcUrls]
-          if (arrayChanged(newRpcUrls, this._getOptions().rpcUrls)) {
-            this._getOptions().rpcUrls = newRpcUrls
-            for (const item of this.channels.values()) {
-              await item.setRpcUrls(this._getOptions().rpcUrls)
+        }
+        // No existing channel for parent window
+        return null
+      }
+
+      if (window.opener !== window && _id === window.opener) {
+        serverLog('getChannel: Looking up parent window channel')
+        // Check if we already have a channel for the parent window
+        for (const item of getChannels().values()) {
+          // For parent window, we can't compare directly due to cross-origin
+          // Instead, check if this is our special parent window channel
+          if (item.window === window.opener) {
+            return item
+          }
+        }
+        // No existing channel for parent window
+        return null
+      }
+
+      // Now safe to check if it's a UPClientChannel (only for non-parent windows)
+      if ('element' in (_id as any) || 'window' in (_id as any)) {
+        _id = (_id as UPClientChannel).element || (_id as UPClientChannel).window
+      }
+
+      for (const item of getChannels().values()) {
+        if (item.window === _id || item.element === _id) {
+          return item
+        }
+      }
+      return null
+    },
+
+    setContextAccounts: async (contextAccounts: `0x${string}`[]) => {
+      const contextAccountsChanged = arrayChanged(options.contextAccounts, contextAccounts)
+      if (contextAccountsChanged) {
+        options.contextAccounts = [...contextAccounts]
+        for (const item of connector.channels.values()) {
+          await item.setContextAccounts(cleanupAccounts(options.contextAccounts))
+        }
+      }
+    },
+    
+    get contextAccounts(): `0x${string}`[] {
+      return cleanupAccounts(options.contextAccounts)
+    },
+    
+    set contextAccounts(contextAccounts: `0x${string}`[]) {
+      connector.setContextAccounts(contextAccounts)
+    },
+
+    setupProvider: async (provider: any, rpcUrls: string | string[]): Promise<void> => {
+      // Create a new promise that will be awaited by new connections
+      const previousPromise = options.promise
+      options.promise = new Promise<void>((resolve, reject) => {
+        ;(async () => {
+          try {
+            // Wait for any previous initialization to complete
+            await previousPromise
+            const oldCallback = options.providerAccountsChangedCallback
+            if (options.provider && oldCallback && typeof options.provider.off === 'function') {
+              options.provider.off('accountsChanged', oldCallback)
+              options.providerAccountsChangedCallback = undefined
             }
-          }
-          const _chainId =
-            (await this._getOptions().provider?.request({
-              method: 'eth_chainId',
-              params: [],
-            })) || this._getOptions().chainId
-          for (const item of this.channels.values()) {
-            await item.setChainId(this._getOptions().chainId)
-          }
-          const _accounts =
-            (await this._getOptions().provider?.request({
-              method: 'eth_accounts',
-              params: [],
-            })) || []
-          const accountsChanged = arrayChanged(this._getOptions().allowedAccounts, _accounts)
-          if (accountsChanged) {
-            this._getOptions().chainId = _chainId
-            this._getOptions().allowedAccounts = [..._accounts]
-            for (const item of this.channels.values()) {
-              await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
-            }
-          }
-          const accountsChangedCallback = async (_accounts: `0x${string}`[]) => {
-            const accountsChanged = arrayChanged(this._getOptions().allowedAccounts, _accounts)
-            if (accountsChanged) {
-              this._getOptions().allowedAccounts = [..._accounts]
-              for (const item of this.channels.values()) {
-                await item.setAllowedAccounts(cleanupAccounts(this._getOptions().allowedAccounts))
+            options.provider = provider
+            const newRpcUrls = Array.isArray(rpcUrls) ? rpcUrls : [rpcUrls]
+            if (arrayChanged(newRpcUrls, options.rpcUrls)) {
+              options.rpcUrls = newRpcUrls
+              for (const item of connector.channels.values()) {
+                await item.setRpcUrls(options.rpcUrls)
               }
             }
+            const _chainId = Number(
+              (await options.provider?.request({
+                method: 'eth_chainId',
+                params: [],
+              })) || options.chainId
+            )
+            if (_chainId !== options.chainId) {
+              options.chainId = _chainId
+              for (const item of connector.channels.values()) {
+                await item.setChainId(options.chainId)
+              }
+            }
+            const _accounts =
+              (await options.provider?.request({
+                method: 'eth_accounts',
+                params: [],
+              })) || []
+            const accountsChanged = arrayChanged(options.allowedAccounts, _accounts)
+            if (accountsChanged) {
+              options.allowedAccounts = [..._accounts]
+              for (const item of connector.channels.values()) {
+                await item.setAllowedAccounts(cleanupAccounts(options.allowedAccounts))
+              }
+            }
+            const accountsChangedCallback = async (_accounts: `0x${string}`[]) => {
+              const accountsChanged = arrayChanged(options.allowedAccounts, _accounts)
+              if (accountsChanged) {
+                options.allowedAccounts = [..._accounts]
+                for (const item of connector.channels.values()) {
+                  await item.setAllowedAccounts(cleanupAccounts(options.allowedAccounts))
+                }
+              }
+            }
+            if (options.provider && typeof options.provider.on === 'function') {
+              options.providerAccountsChangedCallback = accountsChangedCallback
+              options.provider.on('accountsChanged', accountsChangedCallback)
+            }
+            resolve()
+          } catch (err) {
+            reject(err)
           }
-          if (this._getOptions().provider) {
-            this._getOptions().providerAccountsChangedCallback = accountsChangedCallback
-            this._getOptions().provider.on('accountsChanged', accountsChangedCallback)
-          }
-          resolve()
-        } catch (err) {
-          reject(err)
-        }
-      })()
-    })
+        })()
+      })
+    }
   }
+  
+  return connector
 }
 
 let globalUPProvider: UPProviderConnector | null = null
@@ -717,26 +859,79 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
     contextAccounts: [],
     promise: Promise.resolve(),
   }
-  globalUPProvider = new _UPProviderConnector(channels, options)
+  globalUPProvider = _createUPProviderConnector(channels, options)
 
   serverLog('server listen', window)
 
   // Server handler to accept new client provider connections
   options.providerHandler = (event: MessageEvent) => {
-    if (event.data === 'upProvider:hasProvider') {
-      let iframe: HTMLIFrameElement | null = null
-      for (const element of document.querySelectorAll('iframe')) {
-        if (element.contentWindow === event.source) {
-          serverLog('server hasProvider', element)
-          iframe = element
-          break
+    // Handle wrapped JSONRPC messages for cross-origin scenarios (when no channel exists yet)
+    if (event.data?.type === UP_PROVIDER_JSONRPC_TYPE) {
+      // Find the channel for this source
+      for (const [channelId, channel] of channels) {
+        if (channel.window === event.source) {
+          // Forward to the channel's handler
+          const serverChannel = (channel as any)._serverChannel
+          if (serverChannel) {
+            // Unwrap and send through the channel
+            serverChannel.postMessage(event.data.payload)
+          }
+          return
         }
       }
+      // If no channel found, ignore (might be from another wallet)
+      return
+    }
+
+    // Handle both regular provider requests and iframe-specific requests
+    if (event.data === 'upProvider:hasProvider' || event.data === 'upProvider:requestIframeProvider') {
+      // If we're running inside an iframe, only respond to iframe-specific requests
+      const isInIframe = window.parent !== window
+      if (isInIframe && event.data === 'upProvider:hasProvider') {
+        serverLog('Ignoring regular provider request while in iframe')
+        return
+      }
+
+      let iframe: HTMLIFrameElement | null = null
+
+      // Log all iframes found
+      const allIframes = document.querySelectorAll('iframe')
+      serverLog('Found iframes:', allIframes.length)
+
+      // Try to find the iframe that sent this message
+      // For cross-origin iframes, we can't access contentWindow directly
+      for (const element of document.querySelectorAll('iframe')) {
+        try {
+          if (element.contentWindow === event.source) {
+            serverLog('server hasProvider - matched iframe', element)
+            iframe = element
+            break
+          }
+        } catch (e) {
+          // Cross-origin access denied - this is expected for cross-origin iframes
+          // We'll handle this case below by using the Window reference directly
+          serverLog('Cross-origin iframe detected, cannot access contentWindow for', element.src)
+        }
+      }
+
+      if (!iframe) {
+        serverLog('No matching iframe found, using Window reference directly')
+      }
+
       const previous = iframe ? getUPProviderChannel(iframe) : getUPProviderChannel(event.source as Window)
       let channelId: string
-      const serverChannel = event.ports[0]
+      let serverChannel = event.ports?.[0]
       const server = new JSONRPCServer()
-      let enabled = false
+      // Enable by default for iframe/popup mode (when requestIframeProvider is used)
+      let enabled = event.data === 'upProvider:requestIframeProvider'
+
+      // If no port was provided (cross-origin case), create our own MessageChannel
+      let createdChannel: MessageChannel | undefined
+      if (!serverChannel) {
+        serverLog('No port received, creating MessageChannel in server')
+        createdChannel = new MessageChannel()
+        serverChannel = createdChannel.port1
+      }
 
       // Server handler to forward requests to the provider
       if (previous) {
@@ -746,19 +941,19 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
       }
 
       // Wrapper for representation of client connection inside of global provider space.
-      const channel_ = new _UPClientChannel(
+      const channel_ = createUPClientChannel(
         serverChannel,
         event.source as Window,
         iframe,
         channelId,
         server,
         () => enabled,
-        value => {
+        (value: boolean) => {
           enabled = value
         }
       )
 
-      server.applyMiddleware(async (next, request) => {
+      server.applyMiddleware(async (_, request) => {
         await options.promise
         const { method: _method, params: _params, id, jsonrpc } = request
         const method =
@@ -805,6 +1000,14 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
               result: accounts,
             } as JSONRPCSuccessResponse
           }
+          case 'wallet_switchEthereumChain': {
+            serverLog('short circuit response', request)
+            globalUPProvider?.setChainId(Number(params[0]?.chainId ?? options.chainId))
+            return {
+              ...request,
+              result: null,
+            } as JSONRPCSuccessResponse
+          }
           case 'eth_requestAccounts': {
             const accounts = cleanupAccounts(enabled ? [...channel_.allowedAccounts] : [])
             serverLog('short circuit response', request, accounts)
@@ -817,7 +1020,7 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
           case 'eth_chainId':
             return {
               ...request,
-              result: options.chainId,
+              result: `0x${options.chainId.toString(16)}`,
             } as JSONRPCSuccessResponse
           case 'eth_accounts': {
             const accounts = cleanupAccounts(enabled ? [...channel_.allowedAccounts] : [])
@@ -840,39 +1043,61 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
             result: response,
           } as JSONRPCSuccessResponse
         } catch (error) {
-          if (!/method (.*?) not supported./.test((error as { message: string }).message || '')) {
-            console.error(error)
-            const response = {
-              id,
-              jsonrpc,
-              error,
-            } as JSONRPCErrorResponse
-            serverLog('response error', request, response)
-            return response
-          }
+          console.error(error)
+          const response = {
+            id,
+            jsonrpc,
+            error,
+          } as JSONRPCErrorResponse
+          serverLog('response error', request, response)
+          return response
         }
-        serverLog('request', request)
-        return await next(request)
       })
 
       const channelHandler = (event: MessageEvent) => {
+        // Handle wrapped JSONRPC messages for cross-origin scenarios
+        if (event.data?.type === UP_PROVIDER_JSONRPC_TYPE) {
+          const jsonrpcMessage = event.data.payload
+          if (jsonrpcMessage) {
+            // Process as regular JSONRPC message
+            const mockEvent = { data: jsonrpcMessage }
+            channelHandler(mockEvent as MessageEvent)
+          }
+          return
+        }
+
         if (event.data.type === 'upProvider:windowInitialized') {
           serverLog('channel created', event.data.type, event.data)
           globalUPProvider?.emit('channelCreated', channel_.element || channel_.window || null, channel_)
           const destination = channel_.element || channel_.window || null
           if (destination != null) {
-            ;(destination as any).upChannel = channel_
+            let usePostMessage = false
+            try {
+              ;(destination as any).upChannel = channel_
+            } catch {
+              // Ignore
+              usePostMessage = true
+            }
+            const detail = {
+              channel: channel_,
+              chainId: options.chainId,
+              allowedAccounts: [],
+              contextAccounts: options.contextAccounts,
+              rpcUrls: options.rpcUrls,
+              enable: false,
+            }
+            serverLog('channel receipt', detail)
             const event = new CustomEvent('up-channel-connected', {
-              detail: {
-                channel: channel_,
-                chainId: options.chainId,
-                allowedAccounts: options.allowedAccounts,
-                contextAccounts: options.contextAccounts,
-                rpcUrls: options.rpcUrls,
-                enable: channel_.enable,
-              },
+              detail,
             })
-            destination.dispatchEvent(event)
+            if (usePostMessage) {
+              // Need to specify target origin for cross-origin communication
+              ;(destination as Window)?.postMessage({ ...detail, channel: undefined }, '*')
+            } else {
+              try {
+                destination.dispatchEvent(event)
+              } catch {}
+            }
           }
           return
         }
@@ -897,14 +1122,71 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
                     error: response.error,
                   })
                 }
+
+                // Handle wallet_requestPermissions response for popup/iframe modes
+                // return [{
+                //   parentCapability: 'eth_accounts',
+                //   invoker: window.location.origin,
+                //   caveats: [{
+                //     type: 'restrictReturnedAccounts',
+                //     value: accounts
+                //   }]
+                // }]
+                if (request.method === 'wallet_requestPermissions' && response.result) {
+                  // Only update accounts automatically for iframe/popup modes
+                  const isIframeOrPopup = channel_.element !== null || (channel_.window && channel_.window !== window)
+
+                  if (isIframeOrPopup) {
+                    const permissions = response.result[0]
+                    if (permissions?.caveats?.[0]?.type === 'restrictReturnedAccounts' && Array.isArray(permissions.caveats[0].value)) {
+                      const newAccounts = permissions.caveats[0].value as `0x${string}`[]
+                      const currentAccounts = channel_.allowedAccounts
+
+                      // Check if accounts changed using same logic as elsewhere
+                      if ((currentAccounts?.length ?? 0) !== (newAccounts?.length ?? 0) || currentAccounts?.some((account, index) => account !== newAccounts[index])) {
+                        serverLog('wallet_requestPermissions returned new accounts, updating and sending accountsChanged', {
+                          enabled,
+                          isIframeOrPopup,
+                          newAccounts,
+                          currentAccounts,
+                        })
+                        // Update the accounts - this will trigger accountsChanged event
+                        channel_.setAllowedAccounts(newAccounts)
+                      }
+                    }
+                  }
+                }
                 if (!response.id.startsWith(`${channelId}:`)) {
                   console.error(`Invalid response id ${response.id} on channel ${channelId}`)
                   return
                 }
-                serverChannel?.postMessage({
+                // Check if we need to wrap the response for cross-origin
+                const responseMessage = {
                   ...response,
                   id: JSON.parse(response.id.replace(`${channelId}:`, '')),
-                })
+                }
+
+                // Check if this is a cross-origin scenario where we can't use MessageChannel
+                // We should use MessageChannel if we have serverChannel, regardless of window comparison
+                const needsWrapping = !serverChannel && channel_.window
+                if (needsWrapping && channel_.window) {
+                  // Wrap and send via window.postMessage
+                  channel_.window.postMessage(
+                    {
+                      type: UP_PROVIDER_JSONRPC_TYPE,
+                      payload: responseMessage,
+                    },
+                    '*'
+                  )
+                } else {
+                  // Use MessageChannel
+                  serverLog('Sending response via MessageChannel, serverChannel exists:', !!serverChannel, 'responseMessage:', responseMessage)
+                  if (serverChannel) {
+                    serverChannel.postMessage(responseMessage)
+                  } else {
+                    console.error('serverChannel is null/undefined, cannot send response!')
+                  }
+                }
               }
             },
             (error: any) => {
@@ -919,10 +1201,27 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
                   error,
                 })
               }
-              serverChannel?.postMessage({
+              const errorMessage = {
                 error,
                 id: JSON.parse(request.id.replace(`${channelId}:`, '')),
-              })
+              }
+
+              // Check if this is a cross-origin scenario where we can't use MessageChannel
+              // We should use MessageChannel if we have serverChannel, regardless of window comparison
+              const needsWrapping = !serverChannel && channel_.window
+              if (needsWrapping && channel_.window) {
+                // Wrap and send via window.postMessage
+                channel_.window.postMessage(
+                  {
+                    type: UP_PROVIDER_JSONRPC_TYPE,
+                    payload: errorMessage,
+                  },
+                  '*'
+                )
+              } else {
+                // Use MessageChannel
+                serverChannel?.postMessage(errorMessage)
+              }
             }
           )
         } catch (error) {
@@ -936,17 +1235,43 @@ function createUPProviderConnector(provider?: any, rpcUrls?: string | string[]):
       serverChannel.start()
 
       serverLog('server accept', serverChannel)
-      serverChannel?.postMessage({
-        type: 'upProvider:windowInitialize',
-        chainId: options.chainId,
-        allowedAccounts: options.allowedAccounts,
-        contextAccounts: options.contextAccounts,
-        rpcUrls: options.rpcUrls,
+
+      // Wait for provider to be fully initialized before sending windowInitialize
+      options.promise.then(() => {
+        // For iframe/popup mode (enabled=true), send the allowed accounts
+        // For extension mode (enabled=false), send empty accounts until explicitly connected
+        const initMessage = {
+          type: 'upProvider:windowInitialize',
+          chainId: options.chainId,
+          allowedAccounts: cleanupAccounts(enabled ? options.allowedAccounts : []),
+          contextAccounts: cleanupAccounts(options.contextAccounts),
+          rpcUrls: options.rpcUrls,
+        }
+
+        serverLog('Sending windowInitialize after provider ready', initMessage)
+
+        if (createdChannel) {
+          // Send the port along with the init message via postMessage
+          serverLog('Sending created port back to client')
+          ;(event.source as Window).postMessage(initMessage, event.origin, [createdChannel.port2])
+        } else {
+          // Normal flow - send via the channel
+          serverChannel?.postMessage(initMessage)
+        }
+
+        if (enabled && options.allowedAccounts.length > 0) {
+          channel_.emit('connect', { chainId: `0x${options.chainId.toString(16)}` })
+        }
       })
-      channel_.emit('connected')
     }
   }
   window.addEventListener('message', options.providerHandler)
+
+  // If provider was passed, set it up after handler is registered
+  if (provider) {
+    globalUPProvider.setupProvider(provider, rpcUrls || []).catch(console.error)
+  }
+
   return globalUPProvider
 }
 

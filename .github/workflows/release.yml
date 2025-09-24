@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  packages: write
 
 jobs:
   release-please:
@@ -53,6 +54,79 @@ jobs:
       - name: Tests
         run: pnpm run test
 
+  publish-dev-packages:
+    needs: release-please
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.17.0"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build packages
+        run: pnpm run build
+
+      - name: Create dev version
+        working-directory: packages/up-provider
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          DEV_VERSION="${CURRENT_VERSION}-dev.$(git rev-parse --short HEAD)"
+          npm version $DEV_VERSION --no-git-tag-version
+
+      - name: Publish dev version to GitHub Packages
+        working-directory: packages/up-provider
+        run: |
+          echo "@lukso:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          npm publish --tag dev --registry https://npm.pkg.github.com
+
+  build-and-deploy:
+    needs: release-please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Use Node.js '20.17.0'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.17.0"
+          registry-url: "https://registry.npmjs.org"
+          scope: "@lukso"
+          cache: "pnpm"
+
+      - name: Setup Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Prepare artifacts to publish
+        run: pnpm run build
+
+      - name: Tests
+        run: pnpm run test
+
       - uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
@@ -83,6 +157,14 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs
           enable_jekyll: true
+
+      - name: Publish to GitHub Packages
+        if: ${{ steps.release.outputs.releases_created }}
+        working-directory: packages/up-provider
+        run: |
+          echo "@lukso:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          npm publish --registry https://npm.pkg.github.com
 
       - run: |
           # Copy README to package folder

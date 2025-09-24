@@ -7,6 +7,29 @@ This package also contains the [server connector for parent applications](#provi
 
 ## Installation
 
+### For Development (GitHub Packages)
+
+To access development versions and latest features, configure GitHub Packages:
+
+**Option 1: Manual .npmrc setup**
+```bash
+# Create .npmrc in your project root
+echo "@lukso:registry=https://npm.pkg.github.com" > .npmrc
+echo "//npm.pkg.github.com/:_authToken=$(gh auth token)" >> .npmrc
+
+# Then install
+npm install @lukso/up-provider@dev  # Latest dev version
+npm install @lukso/up-provider      # Latest stable version
+```
+
+**Option 2: Using mise (recommended)**
+```bash
+# If using mise.toml in your project
+mise run install
+```
+
+### For Production (npm)
+
 ```bash
 npm install @lukso/up-provider
 ```

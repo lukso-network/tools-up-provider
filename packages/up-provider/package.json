@@ -1,6 +1,14 @@
 {
   "name": "@lukso/up-provider",
+  "version": "0.3.5-test8",
   "packageManager": "yarn@3.3.0",
+  "publishConfig": {
+    "@lukso:registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lukso-network/tools-up-provider.git"
+  },
   "files": [
     "dist",
     "src"
@@ -29,12 +37,32 @@
     ".": {
       "types": "./dist/index.d.ts",
       "require": "./dist/index.js",
-      "import": "./dist/index.mjs"
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.global.js"
+    },
+    "./popup": {
+      "types": "./dist/popup.d.ts",
+      "require": "./dist/popup.js",
+      "import": "./dist/popup.mjs",
+      "default": "./dist/popup.global.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "require": "./dist/server.js",
+      "import": "./dist/server.mjs",
+      "default": "./dist/server.global.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "require": "./dist/client.js",
+      "import": "./dist/client.mjs",
+      "default": "./dist/client.global.js"
     },
     "./src/*": "./src/*"
   },
   "types": "./dist/index.d.ts",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
-  "version": "0.3.5"
+  "unpkg": "./dist/index.global.js",
+  "jsdelivr": "./dist/index.global.js"
 }
