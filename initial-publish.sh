@@ -36,9 +36,12 @@ echo "✅ GitHub CLI authenticated"
 
 # Get current version and create dev version
 CURRENT_VERSION=$(node -p "require('./packages/up-provider/package.json').version")
-DEV_VERSION="${CURRENT_VERSION}-dev.$(git rev-parse --short HEAD)"
+# Remove any existing -test* suffix and create clean dev version  
+BASE_VERSION=$(echo "$CURRENT_VERSION" | sed 's/-test[0-9]*$//')
+DEV_VERSION="${BASE_VERSION}-dev.$(git rev-parse --short HEAD)"
 
 echo "📦 Current version: $CURRENT_VERSION"
+echo "🔧 Base version: $BASE_VERSION"  
 echo "🔨 Creating dev version: $DEV_VERSION"
 
 # Update version and swap name for GitHub Packages
