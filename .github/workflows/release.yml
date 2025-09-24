@@ -85,14 +85,14 @@ jobs:
         run: |
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           DEV_VERSION="${CURRENT_VERSION}-dev.$(git rev-parse --short HEAD)"
-          npm version $DEV_VERSION --no-git-tag-version
+          pnpm version $DEV_VERSION --no-git-tag-version
 
       - name: Publish dev version to GitHub Packages
         working-directory: packages/up-provider
         run: |
           echo "@lukso:registry=https://npm.pkg.github.com" >> .npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-          npm publish --tag dev --registry https://npm.pkg.github.com
+          pnpm publish --tag dev --registry https://npm.pkg.github.com
 
   build-and-deploy:
     needs: release-please
