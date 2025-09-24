@@ -2,6 +2,13 @@
   "name": "@lukso/up-provider",
   "version": "0.3.5-test8",
   "packageManager": "yarn@3.3.0",
+  "publishConfig": {
+    "@lukso:registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lukso-network/tools-up-provider.git"
+  },
   "files": [
     "dist",
     "src"
