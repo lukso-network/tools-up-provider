@@ -96,7 +96,7 @@ jobs:
         run: |
           echo "@lukso:registry=https://npm.pkg.github.com" >> .npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-          pnpm --filter @lukso/up-provider publish --tag dev --registry https://npm.pkg.github.com
+          pnpm --filter @lukso/up-provider publish --tag dev --registry https://npm.pkg.github.com --no-git-checks
 
   build-and-deploy:
     needs: release-please
