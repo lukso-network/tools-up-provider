@@ -80,23 +80,36 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      - name: Create dev version
-        working-directory: packages/up-provider
+      - name: Create dev version and swap name for GitHub Packages
         run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          CURRENT_VERSION=$(node -p "require('./packages/up-provider/package.json').version")
           DEV_VERSION="${CURRENT_VERSION}-dev.$(git rev-parse --short HEAD)"
           node -e "
             const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const pkg = JSON.parse(fs.readFileSync('./packages/up-provider/package.json', 'utf8'));
             pkg.version = '$DEV_VERSION';
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            pkg.name = '@lukso-network/up-provider';
+            fs.writeFileSync('./packages/up-provider/package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
 
       - name: Publish dev version to GitHub Packages
         run: |
-          echo "@lukso:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "@lukso-network:registry=https://npm.pkg.github.com" >> .npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-          pnpm --filter @lukso/up-provider publish --tag dev --registry https://npm.pkg.github.com --no-git-checks
+          pnpm --filter @lukso-network/up-provider publish --tag dev --registry https://npm.pkg.github.com --no-git-checks
+
+      - name: Restore original package name and version
+        if: always()
+        run: |
+          CURRENT_VERSION=$(node -p "require('./packages/up-provider/package.json').version")
+          ORIGINAL_VERSION=$(echo "$CURRENT_VERSION" | sed 's/-dev\.[a-f0-9]*$//')
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('./packages/up-provider/package.json', 'utf8'));
+            pkg.version = '$ORIGINAL_VERSION';
+            pkg.name = '@lukso/up-provider';
+            fs.writeFileSync('./packages/up-provider/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
 
   build-and-deploy:
     needs: release-please
