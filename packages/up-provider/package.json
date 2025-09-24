@@ -1,6 +1,6 @@
 {
   "name": "@lukso/up-provider",
-  "version": "0.3.5-test8-dev.6dc17ea-dev.6dc17ea-dev.6dc17ea-dev.6dc17ea",
+  "version": "0.3.5",
   "packageManager": "yarn@3.3.0",
   "publishConfig": {
     "@lukso:registry": "https://npm.pkg.github.com"
