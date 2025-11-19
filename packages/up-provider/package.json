@@ -16,17 +16,17 @@
   "dependencies": {
     "@mixer/postmessage-rpc": "^1.1.4",
     "@types/debug": "^4.1.12",
-    "@types/uuid": "^10.0.0",
-    "debug": "^4.4.0",
+    "@types/uuid": "^11.0.0",
+    "debug": "^4.4.3",
     "eventemitter3": "^5.0.1",
-    "json-rpc-2.0": "^1.7.0",
-    "lit": "^3.2.1",
+    "json-rpc-2.0": "^1.7.1",
+    "lit": "^3.3.1",
     "pauseable": "^0.3.2",
-    "uuid": "^11.0.3"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "tsup": "^8.3.5",
-    "typescript": "^5.7.2"
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "build": "tsup ./src",
