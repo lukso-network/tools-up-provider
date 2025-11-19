@@ -34,6 +34,36 @@ mise run install
 npm install @lukso/up-provider
 ```
 
+## Contributing & Testing PRs
+
+### Publishing Development Versions from Pull Requests
+
+To test changes in a PR before merging, you can publish a development version to GitHub Package Registry:
+
+1. **Add the `publish-dev` label** to your Pull Request
+2. The CI workflow will automatically build and publish a dev version with the format:
+   - Package name: `@lukso-network/up-provider`
+   - Version: `<base-version>-dev.pr<number>.<commit-hash>`
+   - Example: `0.3.5-dev.pr123.abc1234`
+   - Tagged as: `dev`
+
+3. **Install the dev version in your project:**
+   ```bash
+   # First, authenticate with GitHub Packages (one time setup)
+   echo "//npm.pkg.github.com/:_authToken=$(gh auth token)" >> .npmrc
+   echo "@lukso-network:registry=https://npm.pkg.github.com" >> .npmrc
+
+   # Install the specific dev version
+   npm install @lukso-network/up-provider@0.3.5-dev.pr123.abc1234
+
+   # Or install the latest dev version
+   npm install @lukso-network/up-provider@dev
+   ```
+
+4. **Each push to the PR** with the label will create a new dev version, allowing you to test iterations
+
+**Note:** Dev versions are only published to GitHub Package Registry (not npm). Only releases merged to `main` are published to npm.
+
 ## Provider for mini-apps
 
 Client side setup of the [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) up-provider

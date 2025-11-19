@@ -16,6 +16,9 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      release_created: ${{ steps.release.outputs.release_created }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,8 +37,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20.17.0"
-          registry-url: "https://registry.npmjs.org"
-          scope: "@lukso"
           cache: "pnpm"
 
       - name: Setup Foundry
@@ -48,91 +49,6 @@ jobs:
 
       # `npm run build:js` will also generate the auto-generated constants for methods, errors and events,
       # including extracting their devdocs and userdocs
-      - name: Prepare artifacts to publish
-        run: pnpm run build
-
-      - name: Tests
-        run: pnpm run test
-
-  publish-dev-packages:
-    needs: release-please
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20.17.0"
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Build packages
-        run: pnpm run build
-
-      - name: Create dev version and swap name for GitHub Packages
-        run: |
-          CURRENT_VERSION=$(node -p "require('./packages/up-provider/package.json').version")
-          # Remove any existing -test* suffix and create clean dev version
-          BASE_VERSION=$(echo "$CURRENT_VERSION" | sed 's/-test[0-9]*$//')
-          DEV_VERSION="${BASE_VERSION}-dev.$(git rev-parse --short HEAD)"
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('./packages/up-provider/package.json', 'utf8'));
-            pkg.version = '$DEV_VERSION';
-            pkg.name = '@lukso-network/up-provider';
-            fs.writeFileSync('./packages/up-provider/package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
-
-      - name: Publish dev version to GitHub Packages
-        run: |
-          echo "@lukso-network:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-          pnpm --filter @lukso-network/up-provider publish --tag dev --registry https://npm.pkg.github.com --no-git-checks
-
-      - name: Restore original package name and version
-        if: always()
-        run: |
-          # Get the original version from git (before any modifications)
-          git checkout HEAD -- packages/up-provider/package.json || echo "File already clean"
-
-  build-and-deploy:
-    needs: release-please
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-
-      - name: Use Node.js '20.17.0'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20.17.0"
-          registry-url: "https://registry.npmjs.org"
-          scope: "@lukso"
-          cache: "pnpm"
-
-      - name: Setup Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
-
-      - name: Install Dependencies
-        run: pnpm install
-
       - name: Prepare artifacts to publish
         run: pnpm run build
 
@@ -161,8 +77,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-      
-      - name: Deploy
+
+      - name: Deploy docs
         if: ${{ steps.release.outputs.release_created }}
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -170,22 +86,94 @@ jobs:
           publish_dir: ./docs
           enable_jekyll: true
 
-      - name: Publish to GitHub Packages
+      - name: Validate NPM_TOKEN for release publishing
         if: ${{ steps.release.outputs.releases_created }}
-        working-directory: packages/up-provider
         run: |
-          echo "@lukso:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-          npm publish --registry https://npm.pkg.github.com
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "❌ NPM_TOKEN is not set. Please configure it in repository secrets."
+            echo "⚠️  Cannot publish to npm. Please add the token and re-run this workflow."
+            exit 1
+          fi
+          echo "✅ NPM_TOKEN is configured"
 
-      - run: |
+      - name: Setup Node.js for npm
+        if: ${{ steps.release.outputs.releases_created }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.17.0"
+          registry-url: "https://registry.npmjs.org"
+          scope: "@lukso"
+
+      - name: Publish to npm
+        if: ${{ steps.release.outputs.releases_created }}
+        run: |
           # Copy README to package folder
           cp README.md packages/up-provider/README.md
+
+          # Get release-please outputs
           (cat <<END > outputs.json
           ${{toJSON(steps.release.outputs)}}
           END
           )
-          node ./scripts/publish.mjs outputs.json
-        if: ${{ steps.release.outputs.releases_created }}
+
+          # Use publish.mjs to only publish packages that had releases created
+          # Explicitly use --tag latest for clarity
+          node ./scripts/publish.mjs outputs.json --tag latest
         env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-github-packages:
+    needs: release-please
+    # Run on push to main, OR on PR with 'publish-dev' label
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'publish-dev'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.17.0"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build packages
+        run: pnpm run build
+
+      - name: Determine tag and version
+        id: tag_info
+        run: |
+          CURRENT_VERSION=$(node -p "require('./packages/up-provider/package.json').version")
+          BASE_VERSION=$(echo "$CURRENT_VERSION" | sed 's/-test[0-9]*$//')
+
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # For PRs with publish-dev label, use dev tag with PR number
+            echo "NPM_TAG=dev" >> $GITHUB_OUTPUT
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            DEV_VERSION="${BASE_VERSION}-dev.pr${PR_NUMBER}.$(git rev-parse --short HEAD)"
+            echo "VERSION=$DEV_VERSION" >> $GITHUB_OUTPUT
+            echo "📦 Publishing PR #${PR_NUMBER} as dev version: ${DEV_VERSION}"
+          else
+            # For push to main, use latest tag with clear version identifier
+            echo "NPM_TAG=latest" >> $GITHUB_OUTPUT
+            MAIN_VERSION="${BASE_VERSION}-main.$(git rev-parse --short HEAD)"
+            echo "VERSION=$MAIN_VERSION" >> $GITHUB_OUTPUT
+            echo "📦 Publishing to latest: ${MAIN_VERSION}"
+          fi
+
+      - name: Publish all packages to GitHub Packages
+        run: |
+          echo "@lukso-network:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          node ./scripts/publish-github.mjs --version=${{ steps.tag_info.outputs.VERSION }} --tag=${{ steps.tag_info.outputs.NPM_TAG }}
