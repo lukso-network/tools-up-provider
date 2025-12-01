@@ -27,6 +27,12 @@ type UPWindowConfig =
   | null
   | undefined
   | {
+      window?: Window
+      name?: string
+      description?: string
+      profile?: `0x${string}`
+    }
+  | {
       url: string
       mode: 'popup' | 'iframe'
       name?: string
@@ -454,6 +460,9 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
     // Check if we can access the window's origin (same-origin check)
     let canTransferPort = false
     try {
+      const win = (typeof _up === 'object' && _up.window instanceof Window) ?
+        _up.window
+      : _up || window
       // If we can access the location, we're same-origin
       // Check if we can access the location
       void _up.location.href
@@ -475,11 +484,19 @@ async function testWindow(up: Window | undefined | null, remote: UPClientProvide
       messageType = 'upProvider:requestIframeProvider'
     }
 
+    const message = { type: messageType }
+    if (up && typeof up === 'object') {
+      for (const [key, value] of Object.entries(up as unknown as Record<string, string>)) {
+        if (key === 'name' || key === 'description' || key === 'profile') {
+          ;(message as Record<string, string>)[key] = value
+        }
+      }
+    }
     // Send with or without port based on origin check
     if (canTransferPort) {
-      _up.postMessage(messageType, targetOrigin, [channel.port2])
+      _up.postMessage(message, targetOrigin, [channel.port2])
     } else {
-      _up.postMessage(messageType, targetOrigin)
+      _up.postMessage(message, targetOrigin)
     }
 
     timeout = setTimeout(() => {
@@ -529,16 +546,13 @@ async function findDestination(authURL: UPWindowConfig, remote: UPClientProvider
   let theWindow: UPWindowConfig = typeof authURL === 'object' && (authURL as { url?: string })?.url ? null : authURL
 
   // Store the target origin in options for use in testWindow
-  if (typeof authURL === 'object' && !(authURL instanceof Window) && authURL?.url) {
+  if (authURL && typeof authURL === 'object' && !(authURL instanceof Window) && 'url' in authURL &&authURL?.url) {
     try {
       ;(options as any).targetOrigin = new URL(authURL.url).origin
       clientLog('Stored target origin:', (options as any).targetOrigin)
     } catch (e) {
       clientLog('Could not determine target origin from URL')
     }
-  }
-
-  if (typeof authURL === 'object' && !(authURL instanceof Window) && authURL?.url) {
     const info = localStorage.getItem(`upProvider:info:${authURL}`)
     if (info) {
       const { chainId, allowedAccounts, contextAccounts, rpcUrls } = JSON.parse(info)
@@ -893,7 +907,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   const remote = createUPClientProvider(options)
   let searchPromise: Promise<UPClientProvider> | null
 
-  if (authURL && !(authURL instanceof Window)) {
+  if (authURL && !(authURL instanceof Window) && 'url' in authURL && authURL?.url) {
     authURL.get().then((value: Record<string, unknown>) => {
       if (value.chainId) {
         chainId = value.chainId as number
@@ -909,7 +923,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
   } else {
     preStartupResolve()
   }
-  if (authURL instanceof Window || !authURL || !authURL?.preventRegistration) {
+  if (authURL && !(authURL instanceof Window) && 'url' in authURL && authURL?.url) {
     // Register the provider as a wallet by announcing it.
     const info = authURL && !(authURL instanceof Window) ? authURL : undefined
     const rdns = info?.rdns || 'dev.lukso.auth'
@@ -937,7 +951,7 @@ function createClientUPProvider(authURL?: UPWindowConfig, search = true): UPClie
     })
   }
   const persist = () => {
-    if (authURL && !(authURL instanceof Window)) {
+    if (authURL && !(authURL instanceof Window) && 'url' in authURL && authURL?.url) {
       authURL.set({
         chainId,
         allowedAccounts,
