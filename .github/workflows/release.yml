@@ -188,12 +188,13 @@ jobs:
           # Copy README to package folder
           cp README.md packages/up-provider/README.md
 
-          # Update package version
-          cd packages/up-provider
-          npm version ${{ steps.tag_info.outputs.VERSION }} --no-git-tag-version
+          # Update package version using jq to avoid npm workspace issues
+          jq --arg version "${{ steps.tag_info.outputs.VERSION }}" '.version = $version' packages/up-provider/package.json > packages/up-provider/package.json.tmp
+          mv packages/up-provider/package.json.tmp packages/up-provider/package.json
 
           # Publish to npm with dev tag
-          pnpm --filter @lukso/up-provider publish --tag ${{ steps.tag_info.outputs.NPM_TAG }} --no-git-checks
+          # pnpm automatically rewrites workspace:* dependencies during publish
+          pnpm --filter @lukso/up-provider publish --tag ${{ steps.tag_info.outputs.NPM_TAG }} --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
