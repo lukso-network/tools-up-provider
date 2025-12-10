@@ -7,62 +7,49 @@ This package also contains the [server connector for parent applications](#provi
 
 ## Installation
 
-### For Development (GitHub Packages)
-
-To access development versions and latest features, configure GitHub Packages:
-
-**Option 1: Manual .npmrc setup**
-```bash
-# Create .npmrc in your project root
-echo "@lukso:registry=https://npm.pkg.github.com" > .npmrc
-echo "//npm.pkg.github.com/:_authToken=$(gh auth token)" >> .npmrc
-
-# Then install
-npm install @lukso/up-provider@dev  # Latest dev version
-npm install @lukso/up-provider      # Latest stable version
-```
-
-**Option 2: Using mise (recommended)**
-```bash
-# If using mise.toml in your project
-mise run install
-```
-
 ### For Production (npm)
 
 ```bash
 npm install @lukso/up-provider
 ```
 
+### For Development
+
+To access development versions and latest features:
+
+```bash
+# Install latest dev version
+npm install @lukso/up-provider@dev
+
+# Or install a specific dev version
+npm install @lukso/up-provider@0.3.5-dev.abc1234
+```
+
 ## Contributing & Testing PRs
 
 ### Publishing Development Versions from Pull Requests
 
-To test changes in a PR before merging, you can publish a development version to GitHub Package Registry:
+To test changes in a PR before merging, you can publish a development version to npm:
 
 1. **Add the `publish-dev` label** to your Pull Request
 2. The CI workflow will automatically build and publish a dev version with the format:
-   - Package name: `@lukso-network/up-provider`
+   - Package name: `@lukso/up-provider`
    - Version: `<base-version>-dev.pr<number>.<commit-hash>`
    - Example: `0.3.5-dev.pr123.abc1234`
    - Tagged as: `dev`
 
 3. **Install the dev version in your project:**
    ```bash
-   # First, authenticate with GitHub Packages (one time setup)
-   echo "//npm.pkg.github.com/:_authToken=$(gh auth token)" >> .npmrc
-   echo "@lukso-network:registry=https://npm.pkg.github.com" >> .npmrc
-
    # Install the specific dev version
-   npm install @lukso-network/up-provider@0.3.5-dev.pr123.abc1234
+   npm install @lukso/up-provider@0.3.5-dev.pr123.abc1234
 
    # Or install the latest dev version
-   npm install @lukso-network/up-provider@dev
+   npm install @lukso/up-provider@dev
    ```
 
 4. **Each push to the PR** with the label will create a new dev version, allowing you to test iterations
 
-**Note:** Dev versions are only published to GitHub Package Registry (not npm). Only releases merged to `main` are published to npm.
+**Note:** Dev versions are published with the `@dev` tag to npm. Stable releases use the `@latest` tag.
 
 ## Provider for mini-apps
 

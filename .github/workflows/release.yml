@@ -104,6 +104,10 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           scope: "@lukso"
 
+      - name: Install npm 11 for provenance support
+        if: ${{ steps.release.outputs.releases_created != 'false' }}
+        run: npm install -g npm@11
+
       - name: Publish to npm
         if: ${{ steps.release.outputs.releases_created != 'false' }}
         run: |
@@ -121,8 +125,9 @@ jobs:
           node ./scripts/publish.mjs outputs.json --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
 
-  publish-github-packages:
+  publish-dev-to-npm:
     needs: release-please
     # Run on push to main, OR on PR with 'publish-dev' label
     if: |
@@ -139,10 +144,12 @@ jobs:
         with:
           version: 9.15.4
 
-      - name: Setup Node.js
+      - name: Setup Node.js for npm
         uses: actions/setup-node@v4
         with:
           node-version: "20.17.0"
+          registry-url: "https://registry.npmjs.org"
+          scope: "@lukso"
           cache: pnpm
 
       - name: Install dependencies
@@ -150,6 +157,9 @@ jobs:
 
       - name: Build packages
         run: pnpm run build
+
+      - name: Install npm 11 for provenance support
+        run: npm install -g npm@11
 
       - name: Determine tag and version
         id: tag_info
@@ -165,15 +175,24 @@ jobs:
             echo "VERSION=$DEV_VERSION" >> $GITHUB_OUTPUT
             echo "📦 Publishing PR #${PR_NUMBER} as dev version: ${DEV_VERSION}"
           else
-            # For push to main, use latest tag with clear version identifier
-            echo "NPM_TAG=latest" >> $GITHUB_OUTPUT
-            MAIN_VERSION="${BASE_VERSION}-main.$(git rev-parse --short HEAD)"
+            # For push to main, use dev tag with commit hash
+            echo "NPM_TAG=dev" >> $GITHUB_OUTPUT
+            MAIN_VERSION="${BASE_VERSION}-dev.$(git rev-parse --short HEAD)"
             echo "VERSION=$MAIN_VERSION" >> $GITHUB_OUTPUT
-            echo "📦 Publishing to latest: ${MAIN_VERSION}"
+            echo "📦 Publishing to npmjs as dev: ${MAIN_VERSION}"
           fi
 
-      - name: Publish all packages to GitHub Packages
+      - name: Publish dev version to npm
         run: |
-          echo "@lukso-network:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-          node ./scripts/publish-github.mjs --version=${{ steps.tag_info.outputs.VERSION }} --tag=${{ steps.tag_info.outputs.NPM_TAG }}
+          # Copy README to package folder
+          cp README.md packages/up-provider/README.md
+
+          # Update package version
+          cd packages/up-provider
+          npm version ${{ steps.tag_info.outputs.VERSION }} --no-git-tag-version
+
+          # Publish to npm with dev tag
+          pnpm --filter @lukso/up-provider publish --tag ${{ steps.tag_info.outputs.NPM_TAG }} --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
