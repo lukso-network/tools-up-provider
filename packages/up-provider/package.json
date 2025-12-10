@@ -1,11 +1,20 @@
 {
   "name": "@lukso/up-provider",
   "version": "0.3.6",
+  "description": "EIP-1193 compatible provider for LUKSO Universal Profiles, enabling mini-apps and dApp integration",
   "packageManager": "yarn@3.3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/lukso-network/tools-up-provider.git"
   },
+  "keywords": [
+    "lukso",
+    "universal-profile",
+    "eip-1193",
+    "provider",
+    "ethereum",
+    "web3"
+  ],
   "files": [
     "dist",
     "src"
