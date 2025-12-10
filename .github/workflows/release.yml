@@ -12,6 +12,7 @@ permissions:
   contents: write
   pull-requests: write
   packages: write
+  id-token: write
 
 jobs:
   release-please:
@@ -63,7 +64,7 @@ jobs:
         run: |
           pnpm gendocs
 
-      - name: 'Deploy astro example'
+      - name: "Deploy astro example"
         run: |
           if [ "$CLOUDFLARE_API_TOKEN" == "" ]; then
             echo "CLOUDFLARE_API_TOKEN is not set"
