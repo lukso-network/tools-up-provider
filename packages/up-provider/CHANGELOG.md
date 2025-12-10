@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.3.6](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.5...up-provider-v0.3.6) (2025-12-10)
+
+
+### Bug Fixes
+
+* Add a way to update tgz files ([759b093](https://github.com/lukso-network/tools-up-provider/commit/759b093dbd57759ba448643f0787db63cec9b0e5))
+* Add additional exports into package.json ([1ebfa27](https://github.com/lukso-network/tools-up-provider/commit/1ebfa276b50d2cb27b21ce49a3a9996be3a94754))
+* Add jsdelivr and unpkg formats. ([911c205](https://github.com/lukso-network/tools-up-provider/commit/911c2056a5bc67f335db44d5bafaf4faaed757f1))
+* Add support for popup ([bcb5d71](https://github.com/lukso-network/tools-up-provider/commit/bcb5d71d2550266773a910ceb4e99e0db94dfbb6))
+* Bump version ([4bb15dd](https://github.com/lukso-network/tools-up-provider/commit/4bb15dddfc7816c645ce56e1ef17c48793e4f06a))
+* Bump version ([3e69ceb](https://github.com/lukso-network/tools-up-provider/commit/3e69ceb88942b00cbc3fd2d738f7d9d325bf2695))
+* Bump version to see what's going on. ([9b2ff8a](https://github.com/lukso-network/tools-up-provider/commit/9b2ff8a3a5f61d42901792ddf71d9c0f791a8840))
+* Change version for test tgz ([a64bdeb](https://github.com/lukso-network/tools-up-provider/commit/a64bdeb1625ffd7981e5d3e6d8cbdac64503fccc))
+* Delete unused file ([98fc9ae](https://github.com/lukso-network/tools-up-provider/commit/98fc9aee5b1c7c342fac854bbaf8aee28b10e28b))
+* Early connect ([cd918d9](https://github.com/lukso-network/tools-up-provider/commit/cd918d9ae0703f3e4c97fbd34ade3cc1e1bf36a1))
+* Finalize ([5c4b6b6](https://github.com/lukso-network/tools-up-provider/commit/5c4b6b645e7954482c5fbcbdc12efbf2560f875d))
+* More work ([39b4398](https://github.com/lukso-network/tools-up-provider/commit/39b439836b5cdd083c7a416287b6377e75f9d6d8))
+* More work ([b55e743](https://github.com/lukso-network/tools-up-provider/commit/b55e743602bcd274a7a7e84f8156c16acafc53a1))
+* More work ([6ec3b60](https://github.com/lukso-network/tools-up-provider/commit/6ec3b6066693b271edc3d06669cb2b363b6007e2))
+* More work ([c7fd2bd](https://github.com/lukso-network/tools-up-provider/commit/c7fd2bd881f4fd6d13a73510e12cf979cf5dfc16))
+* More work ([0e4cd13](https://github.com/lukso-network/tools-up-provider/commit/0e4cd135b4c580ff3689da08b1ea52c477dadc2d))
+* More work ([08fa360](https://github.com/lukso-network/tools-up-provider/commit/08fa360e1545c377f0a79c30e5756a45543a29e7))
+* More work, let's try to merge it and test the dev tag. ([14563ad](https://github.com/lukso-network/tools-up-provider/commit/14563adadb399f22c7ba6d6f9a29f9b2b177b9ba))
+* Public key error ([b0de275](https://github.com/lukso-network/tools-up-provider/commit/b0de275c2ef081d317ae522b181e0e219cf2e725))
+* Repair ([d22e632](https://github.com/lukso-network/tools-up-provider/commit/d22e6325f43a44effddcbc073dfaabdbca85fc48))
+* Repair ([ce2fe6e](https://github.com/lukso-network/tools-up-provider/commit/ce2fe6e9e115653567d5addc604082e71998c315))
+* Repair ([0239b15](https://github.com/lukso-network/tools-up-provider/commit/0239b159560c8a9f75aa19239296af7cb3b24343))
+* Repair publish ([d5f5391](https://github.com/lukso-network/tools-up-provider/commit/d5f5391e4e8903d93d08b73813e80e792124b544))
+* Repair to only look at parent window. ([92acbc8](https://github.com/lukso-network/tools-up-provider/commit/92acbc89ae53306b3368b2624380559b86d611c6))
+* Repair to properly send connect/disconnect ([db9b310](https://github.com/lukso-network/tools-up-provider/commit/db9b31040960f330523a7a04893d00f4160d3a81))
+* Repair transaction wait problem and cleanup hash private vars. ([d8c1a75](https://github.com/lukso-network/tools-up-provider/commit/d8c1a75000ea299ebeb5d812982403ca1be0afe0))
+* Some work, but disconnect is still not ideal ([aba87a2](https://github.com/lukso-network/tools-up-provider/commit/aba87a2b2a117ca0d6ef00559cbca4d22d8c8d41))
+* Start popup ([9b3478c](https://github.com/lukso-network/tools-up-provider/commit/9b3478cb1c36e1d90ffc5277e849f3dc41b721fd))
+* Try to publish from gha ([099dc34](https://github.com/lukso-network/tools-up-provider/commit/099dc34da52174bc3297076baa3248d5ce4d7987))
+* upgrades. ([c50af46](https://github.com/lukso-network/tools-up-provider/commit/c50af46e8ffdb93a2bad688b1120f90755fd8784))
+* Use reliable uuidv5 for provider. ([fc37fc8](https://github.com/lukso-network/tools-up-provider/commit/fc37fc8f686b01fdac3d1d722aecbce4e257855b))
+
 ## [0.3.5](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.4...up-provider-v0.3.5) (2025-02-26)
 
 
