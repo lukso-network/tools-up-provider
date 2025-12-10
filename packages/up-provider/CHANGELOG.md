@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.7](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.6...up-provider-v0.3.7) (2025-12-10)
+
+
+### Bug Fixes
+
+* add package description and keywords for better npm discoverability ([6b2f210](https://github.com/lukso-network/tools-up-provider/commit/6b2f210f5a05718cc9804e86e0ba2db0b1d928eb))
+
 ## [0.3.6](https://github.com/lukso-network/tools-up-provider/compare/up-provider-v0.3.5...up-provider-v0.3.6) (2025-12-10)
 
 

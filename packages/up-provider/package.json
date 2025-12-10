@@ -1,6 +1,6 @@
 {
   "name": "@lukso/up-provider",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "EIP-1193 compatible provider for LUKSO Universal Profiles, enabling mini-apps and dApp integration",
   "packageManager": "yarn@3.3.0",
   "repository": {
